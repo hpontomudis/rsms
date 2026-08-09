@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -56,5 +57,13 @@ class SchoolClass extends Model
     public function homeroomTeacher(): ?Staff
     {
         return $this->teachers()->wherePivot('role', 'homeroom')->first();
+    }
+
+    /**
+     * Restrict a query to classes the given staff member teaches.
+     */
+    public function scopeTaughtBy(Builder $query, int $staffId): Builder
+    {
+        return $query->whereHas('teachers', fn ($q) => $q->where('staff_id', $staffId));
     }
 }

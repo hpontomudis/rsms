@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -74,5 +75,13 @@ class Student extends Model
     public function fullName(): string
     {
         return "{$this->first_name} {$this->last_name}";
+    }
+
+    /**
+     * Restrict a query to students enrolled in a class the given staff member teaches.
+     */
+    public function scopeTaughtBy(Builder $query, int $staffId): Builder
+    {
+        return $query->whereHas('classes.teachers', fn ($q) => $q->where('staff_id', $staffId));
     }
 }
