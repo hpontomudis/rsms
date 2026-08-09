@@ -1,5 +1,7 @@
 <?php
 
+use App\Livewire\Academics\ReportCard;
+use App\Livewire\Assessments;
 use App\Livewire\Attendance;
 use App\Livewire\Auth\Login;
 use App\Livewire\Classes;
@@ -9,6 +11,7 @@ use App\Livewire\Guardians;
 use App\Livewire\Invoices;
 use App\Livewire\Staff;
 use App\Livewire\Students;
+use App\Livewire\Subjects;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +40,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', Students\Create::class)->name('create');
         Route::get('/{student}', Students\Show::class)->name('show');
         Route::get('/{student}/edit', Students\Edit::class)->name('edit');
+        Route::get('/{student}/report-card', ReportCard::class)->name('report-card');
     });
 
     Route::prefix('guardians')->name('guardians.')->group(function () {
@@ -76,6 +80,18 @@ Route::middleware('auth')->group(function () {
         Route::get('/', Invoices\Index::class)->name('index');
         Route::get('/create', Invoices\Create::class)->name('create');
         Route::get('/{invoice}', Invoices\Show::class)->name('show');
+    });
+
+    Route::prefix('subjects')->name('subjects.')->group(function () {
+        Route::get('/', Subjects\Index::class)->name('index');
+        Route::get('/create', Subjects\Create::class)->name('create');
+        Route::get('/{subject}/edit', Subjects\Edit::class)->name('edit');
+    });
+
+    Route::prefix('assessments')->name('assessments.')->group(function () {
+        Route::get('/', Assessments\Index::class)->name('index');
+        Route::get('/create', Assessments\Create::class)->name('create');
+        Route::get('/{assessment}', Assessments\Show::class)->name('show');
     });
 
     Route::get('/payments/{payment}/receipt', function (Payment $payment) {

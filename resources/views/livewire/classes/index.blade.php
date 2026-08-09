@@ -1,11 +1,18 @@
 <div class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 class="font-serif text-xl font-bold text-brand-navy">Classes</h1>
-        @can('create', \App\Models\SchoolClass::class)
-            <a href="{{ route('classes.create') }}" class="inline-flex justify-center rounded-md bg-brand-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light">
-                + Add Class
-            </a>
-        @endcan
+        <div class="flex gap-2">
+            @can('viewAny', \App\Models\Subject::class)
+                <a href="{{ route('subjects.index') }}" class="inline-flex justify-center rounded-md border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                    Subjects
+                </a>
+            @endcan
+            @can('create', \App\Models\SchoolClass::class)
+                <a href="{{ route('classes.create') }}" class="inline-flex justify-center rounded-md bg-brand-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light">
+                    + Add Class
+                </a>
+            @endcan
+        </div>
     </div>
 
     <input

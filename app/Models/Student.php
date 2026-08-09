@@ -96,6 +96,11 @@ class Student extends Model
             ->sum(fn (Invoice $invoice) => $invoice->balance());
     }
 
+    public function assessmentResults(): HasMany
+    {
+        return $this->hasMany(AssessmentResult::class);
+    }
+
     /**
      * Restrict a query to students enrolled in a class the given staff member teaches.
      */

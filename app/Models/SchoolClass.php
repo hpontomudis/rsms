@@ -64,6 +64,11 @@ class SchoolClass extends Model
         return $this->hasMany(Attendance::class, 'class_id');
     }
 
+    public function classSubjects(): HasMany
+    {
+        return $this->hasMany(ClassSubject::class, 'class_id');
+    }
+
     /**
      * Restrict a query to classes the given staff member teaches.
      */

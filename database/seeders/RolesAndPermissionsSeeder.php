@@ -8,8 +8,8 @@ use Spatie\Permission\Models\Role;
 
 /**
  * Roles per PRD §7. Permissions cover the Foundation (Phase 1), Attendance
- * (Phase 2), and Finance (Phase 3) modules — later phases add their own
- * permissions without touching this seeder's shape.
+ * (Phase 2), Finance (Phase 3), and Academics (Phase 4) modules — later
+ * phases add their own permissions without touching this seeder's shape.
  */
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -29,6 +29,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'finance.view',
             'finance.manage',
             'finance.discounts.approve',
+            'academics.manage',
+            'academics.record',
+            'academics.view',
         ];
 
         foreach ($permissions as $permission) {
@@ -46,6 +49,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'students.view', 'guardians.view', 'staff.view', 'classes.view', 'audit-logs.view',
                 'attendance.view',
                 'finance.view', 'finance.discounts.approve',
+                'academics.view',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
@@ -56,12 +60,14 @@ class RolesAndPermissionsSeeder extends Seeder
                 'classes.view', 'classes.create', 'classes.update',
                 'academic-years.manage', 'grades.manage',
                 'attendance.record', 'attendance.view',
+                'academics.manage', 'academics.record', 'academics.view',
             ]);
 
         Role::firstOrCreate(['name' => 'teacher', 'guard_name' => 'web'])
             ->syncPermissions([
                 'students.view', 'classes.view',
                 'attendance.record', 'attendance.view',
+                'academics.record', 'academics.view',
             ]);
 
         Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web'])
@@ -73,7 +79,7 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::firstOrCreate(['name' => 'management', 'guard_name' => 'web'])
             ->syncPermissions([
                 'students.view', 'staff.view', 'classes.view', 'audit-logs.view',
-                'attendance.view', 'finance.view',
+                'attendance.view', 'finance.view', 'academics.view',
             ]);
 
         // Parent-portal access is scoped via the student_guardian relation,

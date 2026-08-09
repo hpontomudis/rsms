@@ -213,4 +213,28 @@
             @endif
         </div>
     @endif
+
+    @if ($canViewAcademics)
+        <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-slate-700">Academics</h2>
+                <a href="{{ route('students.report-card', $student) }}" class="text-sm font-medium text-slate-600 hover:text-slate-900">View Report Card</a>
+            </div>
+            <ul class="divide-y divide-slate-100 text-sm">
+                @forelse ($recentAssessmentResults as $result)
+                    <li class="flex items-center justify-between py-2">
+                        <div>
+                            <span class="text-slate-900">{{ $result->assessment->name }}</span>
+                            <span class="ml-1 text-slate-500">
+                                ({{ $result->assessment->classSubject->subject->name }} &middot; {{ $result->assessment->term }})
+                            </span>
+                        </div>
+                        <span class="font-medium text-slate-900">{{ (float) $result->score }} / {{ (int) $result->assessment->max_score }}</span>
+                    </li>
+                @empty
+                    <li class="py-2 text-slate-500">No assessment scores recorded yet.</li>
+                @endforelse
+            </ul>
+        </div>
+    @endif
 </div>

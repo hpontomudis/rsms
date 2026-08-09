@@ -41,4 +41,13 @@ class SchoolClassPolicy
     {
         return $user->can('classes.delete');
     }
+
+    /**
+     * Assigning a subject + teacher to this class is an admin action, not
+     * something a teacher can self-serve.
+     */
+    public function manageAcademics(User $user, SchoolClass $schoolClass): bool
+    {
+        return $user->can('academics.manage');
+    }
 }

@@ -2,10 +2,12 @@
 
 namespace App\Livewire\Classes;
 
+use App\Models\ClassSubject;
 use App\Models\ClassTeacher;
 use App\Models\SchoolClass;
 use App\Models\Staff;
 use App\Models\Student;
+use App\Models\Subject;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -26,6 +28,12 @@ class Show extends Component
     public string $student_id = '';
 
     public string $enrolled_at = '';
+
+    public bool $showAssignSubject = false;
+
+    public string $subject_id = '';
+
+    public string $subject_teacher_id = '';
 
     public function mount(SchoolClass $schoolClass): void
     {
@@ -88,11 +96,49 @@ class Show extends Component
         $this->schoolClass->refresh();
     }
 
+    public function assignSubject(): void
+    {
+        $this->authorize('manageAcademics', $this->schoolClass);
+
+        $validated = $this->validate([
+            'subject_id' => ['required', 'exists:subjects,id'],
+            'subject_teacher_id' => ['required', 'exists:staff,id'],
+        ]);
+
+        ClassSubject::updateOrCreate(
+            ['class_id' => $this->schoolClass->id, 'subject_id' => $validated['subject_id']],
+            ['staff_id' => $validated['subject_teacher_id']]
+        );
+
+        $this->reset(['subject_id', 'subject_teacher_id', 'showAssignSubject']);
+        $this->schoolClass->refresh();
+    }
+
+    public function removeSubject(int $classSubjectId): void
+    {
+        $this->authorize('manageAcademics', $this->schoolClass);
+
+        $classSubject = ClassSubject::where('id', $classSubjectId)->where('class_id', $this->schoolClass->id)->first();
+
+        // Guard proactively rather than letting the FK's restrictOnDelete
+        // surface as a raw query exception -- a subject with assessments
+        // already recorded can't be unassigned without losing that history.
+        if ($classSubject && $classSubject->assessments()->doesntExist()) {
+            $classSubject->delete();
+        }
+
+        $this->schoolClass->refresh();
+    }
+
     public function render()
     {
         return view('livewire.classes.show', [
             'availableStaff' => Staff::where('status', 'active')->orderBy('first_name')->get(),
             'availableStudents' => Student::where('status', 'active')->orderBy('first_name')->get(),
+            'availableSubjects' => Subject::where(function ($q) {
+                $q->whereNull('grade_id')->orWhere('grade_id', $this->schoolClass->grade_id);
+            })->orderBy('name')->get(),
+            'classSubjects' => $this->schoolClass->classSubjects()->with('subject', 'teacher')->withCount('assessments')->get(),
         ]);
     }
 }

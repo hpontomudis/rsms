@@ -124,4 +124,71 @@
             @endforelse
         </ul>
     </div>
+
+    <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-700">Subjects</h2>
+            @can('manageAcademics', $schoolClass)
+                <button type="button" wire:click="$toggle('showAssignSubject')" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+                    + Assign Subject
+                </button>
+            @endcan
+        </div>
+
+        @if ($showAssignSubject)
+            <form wire:submit="assignSubject" class="mb-4 space-y-3 rounded-lg bg-slate-50 p-3">
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Subject</label>
+                    <select wire:model="subject_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        <option value="">Select a subject&hellip;</option>
+                        @foreach ($availableSubjects as $subject)
+                            <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('subject_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Teacher</label>
+                    <select wire:model="subject_teacher_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        <option value="">Select a staff member&hellip;</option>
+                        @foreach ($availableStaff as $member)
+                            <option value="{{ $member->id }}">{{ $member->fullName() }}</option>
+                        @endforeach
+                    </select>
+                    @error('subject_teacher_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Assign</button>
+            </form>
+        @endif
+
+        <ul class="divide-y divide-slate-100 text-sm">
+            @forelse ($classSubjects as $classSubject)
+                <li class="flex items-center justify-between py-2">
+                    <div>
+                        <span class="font-medium text-slate-900">{{ $classSubject->subject->name }}</span>
+                        <span class="ml-1 text-slate-500">taught by {{ $classSubject->teacher->fullName() }}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        @if (Route::has('assessments.index'))
+                            <a href="{{ route('assessments.index', ['class_subject_id' => $classSubject->id]) }}" class="text-xs text-brand-navy hover:underline">Assessments</a>
+                        @endif
+                        @can('manageAcademics', $schoolClass)
+                            @if ($classSubject->assessments_count === 0)
+                                <button
+                                    type="button"
+                                    wire:click="removeSubject({{ $classSubject->id }})"
+                                    wire:confirm="Remove this subject from the class?"
+                                    class="text-xs text-red-500 hover:text-red-700"
+                                >
+                                    Remove
+                                </button>
+                            @endif
+                        @endcan
+                    </div>
+                </li>
+            @empty
+                <li class="py-2 text-slate-500">No subjects assigned yet.</li>
+            @endforelse
+        </ul>
+    </div>
 </div>

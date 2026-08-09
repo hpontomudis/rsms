@@ -69,4 +69,9 @@ class Staff extends Model
     {
         return $this->hasMany(Payment::class, 'received_by');
     }
+
+    public function classSubjects(): HasMany
+    {
+        return $this->hasMany(ClassSubject::class);
+    }
 }

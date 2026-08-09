@@ -18,4 +18,9 @@ class Grade extends Model
     {
         return $this->hasMany(FeeStructure::class);
     }
+
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(Subject::class);
+    }
 }
