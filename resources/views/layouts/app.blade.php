@@ -9,11 +9,14 @@
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div x-data="{ mobileNavOpen: false }" class="min-h-screen">
-        <nav class="border-b border-slate-200 bg-white">
+        <nav class="border-b-2 border-brand-gold bg-white">
             <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-                <a href="{{ route('dashboard') }}" class="flex flex-col leading-tight">
-                    <span class="text-sm font-semibold text-slate-800">Rahai School</span>
-                    <span class="text-xs text-slate-400">Management System</span>
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5">
+                    <img src="{{ asset('images/logo.png') }}" alt="Rahai School" class="h-9 w-9">
+                    <span class="flex flex-col leading-tight">
+                        <span class="font-serif text-sm font-bold text-brand-navy">Rahai School</span>
+                        <span class="text-xs text-slate-400">Management System</span>
+                    </span>
                 </a>
 
                 <button

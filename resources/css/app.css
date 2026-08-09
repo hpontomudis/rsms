@@ -6,6 +6,16 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-serif: 'Libre Baskerville', ui-serif, Georgia, serif;
+
+    /* Rahai School brand palette (Rahai Brand Guidelines.pdf) */
+    --color-brand-navy: #171f46;
+    --color-brand-navy-light: #232c56;
+    --color-brand-navy-dark: #0f1530;
+    --color-brand-slate: #575d79;
+    --color-brand-gold: #f3c445;
+    --color-brand-gold-dark: #dda92f;
+    --color-brand-grey: #aaadbb;
 }
 
 [x-cloak] {

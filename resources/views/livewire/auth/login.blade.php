@@ -1,5 +1,5 @@
 <div>
-    <h2 class="mb-6 text-center text-lg font-semibold text-slate-800">Sign in</h2>
+    <h2 class="mb-6 text-center font-serif text-lg font-bold text-brand-navy">Sign in</h2>
 
     <form wire:submit="submit" class="space-y-4">
         <div>
@@ -10,7 +10,7 @@
                 wire:model="email"
                 autofocus
                 autocomplete="username"
-                class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-slate-500 focus:ring-slate-500"
+                class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-brand-navy"
             >
             @error('email')
                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -24,7 +24,7 @@
                 id="password"
                 wire:model="password"
                 autocomplete="current-password"
-                class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-slate-500 focus:ring-slate-500"
+                class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-brand-navy"
             >
             @error('password')
                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -38,7 +38,7 @@
 
         <button
             type="submit"
-            class="w-full rounded-md bg-slate-900 px-4 py-2.5 text-base font-medium text-white hover:bg-slate-800"
+            class="w-full rounded-md bg-brand-navy px-4 py-2.5 text-base font-medium text-white hover:bg-brand-navy-light"
             wire:loading.attr="disabled"
         >
             <span wire:loading.remove>Sign in</span>

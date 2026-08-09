@@ -3,7 +3,7 @@
 
     <div class="flex flex-col gap-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <h1 class="text-xl font-semibold text-slate-800">{{ $staff->fullName() }}</h1>
+            <h1 class="font-serif text-xl font-bold text-brand-navy">{{ $staff->fullName() }}</h1>
             <p class="text-sm text-slate-500">{{ $staff->staff_number }} &middot; {{ $staff->position->title }}</p>
             <div class="mt-2"><x-status-badge :status="$staff->status" /></div>
         </div>

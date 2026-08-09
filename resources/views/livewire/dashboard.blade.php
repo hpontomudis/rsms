@@ -1,6 +1,6 @@
 <div class="space-y-6">
     <div>
-        <h1 class="text-xl font-semibold text-slate-800">Dashboard</h1>
+        <h1 class="font-serif text-xl font-bold text-brand-navy">Dashboard</h1>
         <p class="text-sm text-slate-500">Welcome back, {{ auth()->user()->name }}.</p>
     </div>
 

@@ -3,7 +3,7 @@
 
     <div class="flex flex-col gap-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <h1 class="text-xl font-semibold text-slate-800">{{ $schoolClass->name }}</h1>
+            <h1 class="font-serif text-xl font-bold text-brand-navy">{{ $schoolClass->name }}</h1>
             <p class="text-sm text-slate-500">{{ $schoolClass->grade->name }} &middot; {{ $schoolClass->academicYear->name }}</p>
             @if ($schoolClass->capacity)
                 <p class="mt-1 text-xs text-slate-400">{{ $schoolClass->students()->count() }} / {{ $schoolClass->capacity }} students</p>
@@ -28,7 +28,7 @@
             <form wire:submit="assignTeacher" class="mb-4 space-y-3 rounded-lg bg-slate-50 p-3">
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Staff</label>
-                    <select wire:model="staff_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model="staff_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                         <option value="">Select a staff member&hellip;</option>
                         @foreach ($availableStaff as $member)
                             <option value="{{ $member->id }}">{{ $member->fullName() }} &mdash; {{ $member->position->title }}</option>
@@ -38,7 +38,7 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Role</label>
-                    <select wire:model="role" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model="role" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                         <option value="">Select&hellip;</option>
                         <option value="homeroom">Homeroom</option>
                         <option value="assistant">Assistant</option>
@@ -46,7 +46,7 @@
                     </select>
                     @error('role') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
-                <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Assign</button>
+                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Assign</button>
             </form>
         @endif
 
@@ -88,7 +88,7 @@
             <form wire:submit="enrollStudent" class="mb-4 space-y-3 rounded-lg bg-slate-50 p-3">
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Student</label>
-                    <select wire:model="student_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model="student_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                         <option value="">Select a student&hellip;</option>
                         @foreach ($availableStudents as $student)
                             <option value="{{ $student->id }}">{{ $student->fullName() }} &mdash; {{ $student->student_number }}</option>
@@ -98,9 +98,9 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Enrolled From</label>
-                    <input type="date" wire:model="enrolled_at" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input type="date" wire:model="enrolled_at" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                 </div>
-                <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Enroll</button>
+                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Enroll</button>
             </form>
         @endif
 

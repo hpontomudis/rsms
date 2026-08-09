@@ -1,8 +1,8 @@
 <div class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 class="text-xl font-semibold text-slate-800">Guardians</h1>
+        <h1 class="font-serif text-xl font-bold text-brand-navy">Guardians</h1>
         @can('create', \App\Models\Guardian::class)
-            <a href="{{ route('guardians.create') }}" class="inline-flex justify-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800">
+            <a href="{{ route('guardians.create') }}" class="inline-flex justify-center rounded-md bg-brand-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light">
                 + Add Guardian
             </a>
         @endcan

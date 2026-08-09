@@ -3,7 +3,7 @@
 
     <div class="flex flex-col gap-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <h1 class="text-xl font-semibold text-slate-800">{{ $guardian->fullName() }}</h1>
+            <h1 class="font-serif text-xl font-bold text-brand-navy">{{ $guardian->fullName() }}</h1>
             <p class="text-sm text-slate-500">{{ $guardian->phone }}</p>
         </div>
         <div class="flex gap-2">
@@ -59,7 +59,7 @@
             <form wire:submit="attachStudent" class="mb-4 space-y-3 rounded-lg bg-slate-50 p-3">
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Student</label>
-                    <select wire:model="student_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model="student_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                         <option value="">Select an existing student&hellip;</option>
                         @foreach ($availableStudents as $student)
                             <option value="{{ $student->id }}">{{ $student->fullName() }} &mdash; {{ $student->student_number }}</option>
@@ -70,7 +70,7 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Relationship</label>
-                    <select wire:model="relationship_type" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model="relationship_type" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                         <option value="">Select&hellip;</option>
                         <option value="father">Father</option>
                         <option value="mother">Mother</option>
@@ -89,7 +89,7 @@
                         <input type="checkbox" wire:model="can_pickup" class="rounded border-slate-300"> Can pick up
                     </label>
                 </div>
-                <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Link Student</button>
+                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Link Student</button>
             </form>
         @endif
 
@@ -100,7 +100,7 @@
                         <a href="{{ route('students.show', $student) }}" class="font-medium text-slate-900 hover:underline">{{ $student->fullName() }}</a>
                         <span class="ml-1 capitalize text-slate-500">({{ str_replace('_', ' ', $student->pivot->relationship_type) }})</span>
                         @if ($student->pivot->is_primary_contact)
-                            <span class="ml-1 rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">Primary</span>
+                            <span class="ml-1 rounded-full bg-brand-navy px-2 py-0.5 text-xs text-white">Primary</span>
                         @endif
                     </div>
                     @can('update', $guardian)

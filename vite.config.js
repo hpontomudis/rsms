@@ -12,6 +12,9 @@ export default defineConfig({
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
                 }),
+                bunny('Libre Baskerville', {
+                    weights: [400, 700],
+                }),
             ],
         }),
         tailwindcss(),

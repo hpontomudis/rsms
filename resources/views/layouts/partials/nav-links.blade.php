@@ -15,7 +15,7 @@
 ] as $item)
     <a
         href="{{ $item['href'] }}"
-        class="rounded-md px-3 py-2 text-sm font-medium {{ $item['active'] ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100' }}"
+        class="rounded-md px-3 py-2 text-sm font-medium {{ $item['active'] ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-slate-100' }}"
     >
         {{ $item['label'] }}
     </a>
