@@ -1,0 +1,69 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+
+/**
+ * Roles per PRD §7. Permissions cover only the Foundation module (Phase 1) —
+ * later phases add their own permissions without touching this seeder's shape.
+ */
+class RolesAndPermissionsSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $permissions = [
+            'students.view', 'students.create', 'students.update', 'students.delete',
+            'guardians.view', 'guardians.create', 'guardians.update', 'guardians.delete',
+            'staff.view', 'staff.create', 'staff.update', 'staff.delete',
+            'classes.view', 'classes.create', 'classes.update', 'classes.delete',
+            'academic-years.manage',
+            'grades.manage',
+            'roles.manage',
+            'audit-logs.view',
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
+        }
+
+        // super_admin gets every permission explicitly (in addition to the
+        // Gate::before bypass in AppServiceProvider) so the role stays
+        // correct even if that bypass is ever removed.
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web'])
+            ->syncPermissions($permissions);
+
+        Role::firstOrCreate(['name' => 'principal', 'guard_name' => 'web'])
+            ->syncPermissions([
+                'students.view', 'guardians.view', 'staff.view', 'classes.view', 'audit-logs.view',
+            ]);
+
+        Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
+            ->syncPermissions([
+                'students.view', 'students.create', 'students.update',
+                'guardians.view', 'guardians.create', 'guardians.update',
+                'staff.view', 'staff.create', 'staff.update',
+                'classes.view', 'classes.create', 'classes.update',
+                'academic-years.manage', 'grades.manage',
+            ]);
+
+        Role::firstOrCreate(['name' => 'teacher', 'guard_name' => 'web'])
+            ->syncPermissions([
+                'students.view', 'classes.view',
+            ]);
+
+        // Finance permissions land with the Phase 3 Finance module.
+        Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web']);
+
+        Role::firstOrCreate(['name' => 'management', 'guard_name' => 'web'])
+            ->syncPermissions([
+                'students.view', 'staff.view', 'classes.view', 'audit-logs.view',
+            ]);
+
+        // Parent-portal access is scoped via the student_guardian relation,
+        // not RBAC permissions — the role exists now so it's ready to assign.
+        Role::firstOrCreate(['name' => 'parent', 'guard_name' => 'web']);
+    }
+}
