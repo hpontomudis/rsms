@@ -4,9 +4,12 @@ use App\Livewire\Attendance;
 use App\Livewire\Auth\Login;
 use App\Livewire\Classes;
 use App\Livewire\Dashboard;
+use App\Livewire\FeeStructures;
 use App\Livewire\Guardians;
+use App\Livewire\Invoices;
 use App\Livewire\Staff;
 use App\Livewire\Students;
+use App\Models\Payment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -61,4 +64,25 @@ Route::middleware('auth')->group(function () {
         Route::get('/', Attendance\Take::class)->name('take');
         Route::get('/report', Attendance\Report::class)->name('report');
     });
+
+    Route::prefix('fee-structures')->name('fee-structures.')->group(function () {
+        Route::get('/', FeeStructures\Index::class)->name('index');
+        Route::get('/create', FeeStructures\Create::class)->name('create');
+        Route::get('/{feeStructure}', FeeStructures\Show::class)->name('show');
+        Route::get('/{feeStructure}/edit', FeeStructures\Edit::class)->name('edit');
+    });
+
+    Route::prefix('invoices')->name('invoices.')->group(function () {
+        Route::get('/', Invoices\Index::class)->name('index');
+        Route::get('/create', Invoices\Create::class)->name('create');
+        Route::get('/{invoice}', Invoices\Show::class)->name('show');
+    });
+
+    Route::get('/payments/{payment}/receipt', function (Payment $payment) {
+        abort_unless(request()->user()->can('finance.view'), 403);
+
+        $payment->load('invoice.student', 'receivedBy');
+
+        return view('receipts.show', ['payment' => $payment]);
+    })->name('payments.receipt');
 });

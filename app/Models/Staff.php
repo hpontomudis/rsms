@@ -59,4 +59,14 @@ class Staff extends Model
     {
         return $this->hasMany(Attendance::class, 'taken_by');
     }
+
+    public function approvedDiscounts(): HasMany
+    {
+        return $this->hasMany(Discount::class, 'approved_by');
+    }
+
+    public function receivedPayments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'received_by');
+    }
 }

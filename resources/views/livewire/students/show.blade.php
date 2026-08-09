@@ -181,4 +181,36 @@
             </ul>
         </div>
     @endif
+
+    @if ($canViewFinance)
+        <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-slate-700">Finance</h2>
+                @can('create', \App\Models\Invoice::class)
+                    <a href="{{ route('invoices.create') }}" class="text-sm font-medium text-slate-600 hover:text-slate-900">+ New Invoice</a>
+                @endcan
+            </div>
+            <ul class="divide-y divide-slate-100 text-sm">
+                @forelse ($invoices as $invoice)
+                    <li class="flex items-center justify-between py-2">
+                        <div>
+                            <a href="{{ route('invoices.show', $invoice) }}" class="font-medium text-slate-900 hover:underline">{{ $invoice->invoice_number }}</a>
+                            <span class="ml-1 text-slate-500">Rp {{ number_format($invoice->balance(), 0, ',', '.') }} outstanding</span>
+                        </div>
+                        <x-status-badge :status="$invoice->status" />
+                    </li>
+                @empty
+                    <li class="py-2 text-slate-500">No invoices yet.</li>
+                @endforelse
+            </ul>
+            @if ($invoices->isNotEmpty())
+                <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-sm font-semibold">
+                    <span class="text-slate-700">Total Outstanding</span>
+                    <span class="{{ $student->outstandingBalance() > 0 ? 'text-red-600' : 'text-emerald-600' }}">
+                        Rp {{ number_format($student->outstandingBalance(), 0, ',', '.') }}
+                    </span>
+                </div>
+            @endif
+        </div>
+    @endif
 </div>

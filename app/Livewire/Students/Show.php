@@ -102,6 +102,7 @@ class Show extends Component
     public function render()
     {
         $canViewAttendance = auth()->user()->can('attendance.view');
+        $canViewFinance = auth()->user()->can('finance.view');
 
         return view('livewire.students.show', [
             'availableGuardians' => Guardian::orderBy('first_name')->get(),
@@ -117,6 +118,10 @@ class Show extends Component
                     ->get()
                     ->sortByDesc(fn ($record) => $record->attendance->date)
                     ->take(10)
+                : collect(),
+            'canViewFinance' => $canViewFinance,
+            'invoices' => $canViewFinance
+                ? $this->student->invoices()->with('items', 'discounts', 'payments')->orderByDesc('issue_date')->get()
                 : collect(),
         ]);
     }

@@ -7,9 +7,9 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 /**
- * Roles per PRD §7. Permissions cover the Foundation (Phase 1) and
- * Attendance (Phase 2) modules — later phases add their own permissions
- * without touching this seeder's shape.
+ * Roles per PRD §7. Permissions cover the Foundation (Phase 1), Attendance
+ * (Phase 2), and Finance (Phase 3) modules — later phases add their own
+ * permissions without touching this seeder's shape.
  */
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -26,6 +26,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'audit-logs.view',
             'attendance.record',
             'attendance.view',
+            'finance.view',
+            'finance.manage',
+            'finance.discounts.approve',
         ];
 
         foreach ($permissions as $permission) {
@@ -42,6 +45,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ->syncPermissions([
                 'students.view', 'guardians.view', 'staff.view', 'classes.view', 'audit-logs.view',
                 'attendance.view',
+                'finance.view', 'finance.discounts.approve',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
@@ -60,13 +64,16 @@ class RolesAndPermissionsSeeder extends Seeder
                 'attendance.record', 'attendance.view',
             ]);
 
-        // Finance permissions land with the Phase 3 Finance module.
-        Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web'])
+            ->syncPermissions([
+                'students.view',
+                'finance.view', 'finance.manage', 'finance.discounts.approve',
+            ]);
 
         Role::firstOrCreate(['name' => 'management', 'guard_name' => 'web'])
             ->syncPermissions([
                 'students.view', 'staff.view', 'classes.view', 'audit-logs.view',
-                'attendance.view',
+                'attendance.view', 'finance.view',
             ]);
 
         // Parent-portal access is scoped via the student_guardian relation,

@@ -6,6 +6,8 @@ use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Guardian;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\SchoolClass;
 use App\Models\Staff;
 use App\Models\Student;
@@ -53,7 +55,28 @@ class Dashboard extends Component
             'schoolAttendanceToday' => (! $isTeacher && $user->can('attendance.view'))
                 ? $this->schoolAttendanceToday()
                 : null,
+            'financeSummary' => $user->can('finance.view') ? $this->financeSummary() : null,
         ]);
+    }
+
+    private function financeSummary(): array
+    {
+        $outstanding = Invoice::where('status', '!=', 'void')
+            ->with('items', 'discounts', 'payments')
+            ->get()
+            ->sum(fn (Invoice $invoice) => $invoice->balance());
+
+        $paidToday = Payment::where('paid_at', now()->toDateString())->sum('amount');
+
+        $overdueCount = Invoice::whereIn('status', ['unpaid', 'partially_paid'])
+            ->where('due_date', '<', now()->toDateString())
+            ->count();
+
+        return [
+            'outstanding' => (float) $outstanding,
+            'paidToday' => (float) $paidToday,
+            'overdueCount' => $overdueCount,
+        ];
     }
 
     private function todaysClassesFor(int $staffId)

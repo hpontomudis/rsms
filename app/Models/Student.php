@@ -82,6 +82,20 @@ class Student extends Model
         return $this->hasMany(AttendanceRecord::class);
     }
 
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function outstandingBalance(): float
+    {
+        return (float) $this->invoices()
+            ->where('status', '!=', 'void')
+            ->with('items', 'discounts', 'payments')
+            ->get()
+            ->sum(fn (Invoice $invoice) => $invoice->balance());
+    }
+
     /**
      * Restrict a query to students enrolled in a class the given staff member teaches.
      */
