@@ -24,12 +24,19 @@
 
             <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Position</label>
-                <select wire:model="position_id" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                <input
+                    type="text"
+                    list="position-options"
+                    wire:model="position_title"
+                    placeholder="Select or type a new position&hellip;"
+                    class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy"
+                >
+                <datalist id="position-options">
                     @foreach ($positions as $position)
-                        <option value="{{ $position->id }}">{{ $position->title }}</option>
+                        <option value="{{ $position->title }}"></option>
                     @endforeach
-                </select>
-                @error('position_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                </datalist>
+                @error('position_title') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>

@@ -17,6 +17,8 @@ class PositionSeeder extends Seeder
             'Finance Officer',
             'Administration Staff',
             'Librarian',
+            'Support Staff',
+            'Building Staff',
         ];
 
         foreach ($positions as $title) {
