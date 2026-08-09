@@ -77,6 +77,11 @@ class Student extends Model
         return "{$this->first_name} {$this->last_name}";
     }
 
+    public function attendanceRecords(): HasMany
+    {
+        return $this->hasMany(AttendanceRecord::class);
+    }
+
     /**
      * Restrict a query to students enrolled in a class the given staff member teaches.
      */

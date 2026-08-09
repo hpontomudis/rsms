@@ -101,12 +101,23 @@ class Show extends Component
 
     public function render()
     {
+        $canViewAttendance = auth()->user()->can('attendance.view');
+
         return view('livewire.students.show', [
             'availableGuardians' => Guardian::orderBy('first_name')->get(),
             'availableClasses' => SchoolClass::whereHas('academicYear', fn ($q) => $q->where('is_current', true))
                 ->with('grade')
                 ->get(),
             'currentClass' => $this->student->currentClass(),
+            'canViewAttendance' => $canViewAttendance,
+            'recentAttendance' => $canViewAttendance
+                ? $this->student->attendanceRecords()
+                    ->with('attendance.schoolClass')
+                    ->whereHas('attendance')
+                    ->get()
+                    ->sortByDesc(fn ($record) => $record->attendance->date)
+                    ->take(10)
+                : collect(),
         ]);
     }
 }

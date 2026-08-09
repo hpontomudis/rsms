@@ -1,8 +1,8 @@
 @php
-    $navItem = fn (string $route, string $label) => [
+    $navItem = fn (string $route, string $label, ?string $activePattern = null) => [
         'href' => route($route),
         'label' => $label,
-        'active' => request()->routeIs($route.'*'),
+        'active' => request()->routeIs($activePattern ?? $route.'*'),
     ];
 @endphp
 
@@ -12,6 +12,11 @@
     ...(Route::has('guardians.index') && auth()->user()->can('guardians.view') ? [$navItem('guardians.index', 'Guardians')] : []),
     ...(Route::has('staff.index') && auth()->user()->can('staff.view') ? [$navItem('staff.index', 'Staff')] : []),
     ...(Route::has('classes.index') && auth()->user()->can('classes.view') ? [$navItem('classes.index', 'Classes')] : []),
+    ...(Route::has('attendance.take') && auth()->user()->can('attendance.record')
+        ? [$navItem('attendance.take', 'Attendance', 'attendance.*')]
+        : (Route::has('attendance.report') && auth()->user()->can('attendance.view')
+            ? [$navItem('attendance.report', 'Attendance', 'attendance.*')]
+            : [])),
 ] as $item)
     <a
         href="{{ $item['href'] }}"

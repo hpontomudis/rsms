@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\AcademicYear;
+use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Guardian;
 use App\Models\SchoolClass;
@@ -45,6 +47,52 @@ class Dashboard extends Component
             'recentActivity' => $user->can('audit-logs.view')
                 ? AuditLog::with('user')->latest('id')->limit(8)->get()
                 : collect(),
+            'todaysClasses' => $isTeacher && $user->can('attendance.record')
+                ? $this->todaysClassesFor($staffId)
+                : null,
+            'schoolAttendanceToday' => (! $isTeacher && $user->can('attendance.view'))
+                ? $this->schoolAttendanceToday()
+                : null,
         ]);
+    }
+
+    private function todaysClassesFor(int $staffId)
+    {
+        $currentYear = AcademicYear::current();
+
+        if (! $currentYear) {
+            return collect();
+        }
+
+        $classes = SchoolClass::taughtBy($staffId)
+            ->where('academic_year_id', $currentYear->id)
+            ->with('grade')
+            ->orderBy('name')
+            ->get();
+
+        $takenClassIds = Attendance::whereIn('class_id', $classes->pluck('id'))
+            ->where('date', now()->toDateString())
+            ->pluck('class_id');
+
+        return $classes->map(fn ($class) => (object) [
+            'schoolClass' => $class,
+            'taken' => $takenClassIds->contains($class->id),
+        ]);
+    }
+
+    private function schoolAttendanceToday(): array
+    {
+        $sessions = Attendance::where('date', now()->toDateString())->with('records')->get();
+        $totalClassesToday = $sessions->count();
+
+        $totalRecords = $sessions->sum(fn ($session) => $session->records->count());
+        $presentOrLate = $sessions->sum(
+            fn ($session) => $session->records->whereIn('status', ['present', 'late'])->count()
+        );
+
+        return [
+            'classesTaken' => $totalClassesToday,
+            'rate' => $totalRecords > 0 ? round($presentOrLate / $totalRecords * 100) : null,
+        ];
     }
 }

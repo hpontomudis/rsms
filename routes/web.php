@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Attendance;
 use App\Livewire\Auth\Login;
 use App\Livewire\Classes;
 use App\Livewire\Dashboard;
@@ -54,5 +55,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', Classes\Create::class)->name('create');
         Route::get('/{schoolClass}', Classes\Show::class)->name('show');
         Route::get('/{schoolClass}/edit', Classes\Edit::class)->name('edit');
+    });
+
+    Route::prefix('attendance')->name('attendance.')->group(function () {
+        Route::get('/', Attendance\Take::class)->name('take');
+        Route::get('/report', Attendance\Report::class)->name('report');
     });
 });

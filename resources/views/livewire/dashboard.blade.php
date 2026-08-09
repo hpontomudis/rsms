@@ -20,6 +20,49 @@
         @endforeach
     </div>
 
+    @if (! is_null($schoolAttendanceToday))
+        <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-700">Attendance today</h2>
+                    <p class="text-xs text-slate-500">{{ $schoolAttendanceToday['classesTaken'] }} {{ Str::plural('class', $schoolAttendanceToday['classesTaken']) }} recorded so far</p>
+                </div>
+                <div class="text-2xl font-semibold text-slate-900">
+                    {{ $schoolAttendanceToday['rate'] !== null ? $schoolAttendanceToday['rate'].'%' : '—' }}
+                </div>
+            </div>
+            @can('attendance.view')
+                <a href="{{ route('attendance.report') }}" class="mt-3 inline-block text-sm font-medium text-brand-navy hover:underline">
+                    View full report &rarr;
+                </a>
+            @endcan
+        </div>
+    @endif
+
+    @if (! is_null($todaysClasses))
+        <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+            <h2 class="mb-3 text-sm font-semibold text-slate-700">Today's classes</h2>
+            <ul class="divide-y divide-slate-100 text-sm">
+                @forelse ($todaysClasses as $entry)
+                    <li class="flex items-center justify-between py-2">
+                        <span class="font-medium text-slate-900">{{ $entry->schoolClass->name }}</span>
+                        @if ($entry->taken)
+                            <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                                Attendance taken
+                            </span>
+                        @else
+                            <a href="{{ route('attendance.take', ['class_id' => $entry->schoolClass->id]) }}" class="rounded-md bg-brand-navy px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-navy-light">
+                                Take attendance
+                            </a>
+                        @endif
+                    </li>
+                @empty
+                    <li class="py-2 text-slate-500">You are not assigned to teach any class this year.</li>
+                @endforelse
+            </ul>
+        </div>
+    @endif
+
     @if ($recentActivity->isNotEmpty())
         <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <h2 class="mb-3 text-sm font-semibold text-slate-700">Recent activity</h2>

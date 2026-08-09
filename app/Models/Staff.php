@@ -54,4 +54,9 @@ class Staff extends Model
     {
         return "{$this->first_name} {$this->last_name}";
     }
+
+    public function attendanceTaken(): HasMany
+    {
+        return $this->hasMany(Attendance::class, 'taken_by');
+    }
 }

@@ -59,6 +59,11 @@ class SchoolClass extends Model
         return $this->teachers()->wherePivot('role', 'homeroom')->first();
     }
 
+    public function attendanceSessions(): HasMany
+    {
+        return $this->hasMany(Attendance::class, 'class_id');
+    }
+
     /**
      * Restrict a query to classes the given staff member teaches.
      */

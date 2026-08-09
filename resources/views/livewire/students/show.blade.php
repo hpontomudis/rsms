@@ -162,4 +162,23 @@
             @endforelse
         </ul>
     </div>
+
+    @if ($canViewAttendance)
+        <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <h2 class="mb-3 text-sm font-semibold text-slate-700">Attendance History</h2>
+            <ul class="divide-y divide-slate-100 text-sm">
+                @forelse ($recentAttendance as $record)
+                    <li class="flex items-center justify-between py-2">
+                        <div>
+                            <span class="text-slate-900">{{ $record->attendance->date->format('d M Y') }}</span>
+                            <span class="ml-1 text-slate-500">{{ $record->attendance->schoolClass->name }}</span>
+                        </div>
+                        <x-status-badge :status="$record->status" />
+                    </li>
+                @empty
+                    <li class="py-2 text-slate-500">No attendance recorded yet.</li>
+                @endforelse
+            </ul>
+        </div>
+    @endif
 </div>
