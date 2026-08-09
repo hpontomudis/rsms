@@ -6,15 +6,20 @@
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         @foreach ([
-            ['label' => 'Students', 'value' => $studentCount, 'route' => 'students.index'],
-            ['label' => 'Guardians', 'value' => $guardianCount, 'route' => 'guardians.index'],
-            ['label' => 'Staff', 'value' => $staffCount, 'route' => 'staff.index'],
-            ['label' => 'Classes', 'value' => $classCount, 'route' => 'classes.index'],
+            ['label' => 'Students', 'value' => $studentCount, 'route' => 'students.index', 'icon' => 'students', 'color' => 'bg-sky-50 text-sky-600'],
+            ['label' => 'Guardians', 'value' => $guardianCount, 'route' => 'guardians.index', 'icon' => 'guardians', 'color' => 'bg-violet-50 text-violet-600'],
+            ['label' => 'Staff', 'value' => $staffCount, 'route' => 'staff.index', 'icon' => 'staff', 'color' => 'bg-emerald-50 text-emerald-600'],
+            ['label' => 'Classes', 'value' => $classCount, 'route' => 'classes.index', 'icon' => 'classes', 'color' => 'bg-amber-50 text-amber-600'],
         ] as $tile)
             @if (! is_null($tile['value']))
-                <a href="{{ route($tile['route']) }}" class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-slate-300">
-                    <div class="text-2xl font-semibold text-slate-900">{{ $tile['value'] }}</div>
-                    <div class="text-sm text-slate-500">{{ $tile['label'] }}</div>
+                <a href="{{ route($tile['route']) }}" class="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-slate-300">
+                    <span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full {{ $tile['color'] }}">
+                        <x-icon :name="$tile['icon']" class="h-6 w-6" />
+                    </span>
+                    <span>
+                        <span class="block text-xl font-semibold text-slate-900">{{ $tile['value'] }}</span>
+                        <span class="block text-xs text-slate-500">{{ $tile['label'] }}</span>
+                    </span>
                 </a>
             @endif
         @endforeach
