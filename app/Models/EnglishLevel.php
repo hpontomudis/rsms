@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A proficiency level within a programme. Ordering is `sequence`, scoped to
@@ -21,6 +22,20 @@ class EnglishLevel extends Model
     public function programme(): BelongsTo
     {
         return $this->belongsTo(EnglishProgramme::class, 'english_programme_id');
+    }
+
+    /**
+     * Operational groups running against this level. A level with no groups
+     * is normal -- the level is a standard, the group is a room of students.
+     */
+    public function teachingGroups(): HasMany
+    {
+        return $this->hasMany(TeachingGroup::class);
+    }
+
+    public function placements(): HasMany
+    {
+        return $this->hasMany(StudentEnglishLevelPlacement::class);
     }
 
     public function scopeActive(Builder $query): Builder

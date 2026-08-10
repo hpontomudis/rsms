@@ -13,6 +13,7 @@ use App\Livewire\Invoices;
 use App\Livewire\Staff;
 use App\Livewire\Students;
 use App\Livewire\Subjects;
+use App\Livewire\TeachingGroups;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +43,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{student}', Students\Show::class)->name('show');
         Route::get('/{student}/edit', Students\Edit::class)->name('edit');
         Route::get('/{student}/report-card', ReportCard::class)->name('report-card');
+        Route::get('/{student}/english-placement', Students\EnglishPlacement::class)->name('english-placement');
     });
 
     Route::prefix('guardians')->name('guardians.')->group(function () {
@@ -88,6 +90,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', EnglishProgrammes\Create::class)->name('create');
         Route::get('/{englishProgramme}', EnglishProgrammes\Show::class)->name('show');
         Route::get('/{englishProgramme}/edit', EnglishProgrammes\Edit::class)->name('edit');
+    });
+
+    Route::prefix('teaching-groups')->name('teaching-groups.')->group(function () {
+        Route::get('/', TeachingGroups\Index::class)->name('index');
+        Route::get('/create', TeachingGroups\Create::class)->name('create');
+        Route::get('/{teachingGroup}', TeachingGroups\Show::class)->name('show');
+        Route::get('/{teachingGroup}/edit', TeachingGroups\Edit::class)->name('edit');
     });
 
     Route::prefix('subjects')->name('subjects.')->group(function () {

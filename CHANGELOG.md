@@ -4,6 +4,37 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 - Phase 5 Step 2a-ii
+
+### Added
+- **Teaching groups** - groups of students taught together within one academic year, at `/teaching-groups`. A group carrying an English level is a proficiency group; one without is a generic group. No `kind` enum: Remedial/OSN/Elective will be designed from real requirements, not guessed at now.
+- **Group rosters** - add an eligible student, end a membership, with current and past members shown separately. Groups are never generated from English levels, and no production seed data is shipped: a level is a standard, a group is a room of students the school actually decided to run.
+- **English proficiency placement** per student, at `/students/{student}/english-placement` - current assessed level, full history, change-of-level by close-and-open, optional assessment date, reason and notes. The screen also lists the groups the student actually attends, so the two facts sit side by side.
+- Three domain services (`app/Services/`) holding the rules, so the UI, the tests, and any future import path all go through the same code.
+
+### Database
+- `teaching_groups` - `unique(academic_year_id, name)`; academic year and English level both `RESTRICT`.
+- `teaching_group_student` - effective-dated, with partial unique index `UNIQUE(teaching_group_id, student_id) WHERE ended_on IS NULL`. Deliberately not `class_student`'s flat uniqueness, which would make Green -> Blue -> Green impossible to record.
+- `student_english_level_placements` - partial unique index `UNIQUE(student_id) WHERE ended_on IS NULL`: one open assessed level, any number of closed ones behind it. No grade or programme column, both being derivable.
+
+### Notes
+- **Proficiency and group membership are never synchronised.** A student assessed Blue may still attend Green A. Recording a new level does not move anyone; a test asserts the membership rows are byte-identical before and after a re-assessment.
+- **Two rules are application-level, not database-level, and that is deliberate.** Grade eligibility for an English group, and "one open English group per programme", both depend on the join path group -> level -> programme. Neither can be a unique index without copying `english_programme_id` onto the membership row, so both are enforced in a transaction that locks the student row first. The database is not the backstop for these two; everything else here is.
+- **Student grade is resolved only through the existing class structure** (`StudentGradeResolver`), with no second student-grade field. Where Phase 1's flat `class_student` permits a student two active classes in different grades in one year, the resolver reports the ambiguity instead of silently picking one the way `Student::currentClass()` does.
+- A group's English level locks once the group has ever had a member - changing it would rewrite what the group was and who had been eligible for it.
+
+### Security
+- Teaching groups and placements require `academics.manage`, **not** `academics.view`. Teachers hold `academics.view`, and gating rosters on it would hand every teacher every roster in the school. Until Step 2b records which teacher teaches which group there is no basis to scope a teacher's access, so they get none. Asserted over HTTP against the real routes, not just by hiding buttons. `StudentPolicy` was not modified.
+
+### Tests
+- New `TeachingGroupTest` (45 tests). Suite: 77 to 122 passing.
+- Verified beyond the suite: PostgreSQL partial indexes and RESTRICT exercised directly on a from-scratch database, and manual browser checks covering group creation, the eligibility-filtered picker, a live rejection of a second English group, membership end and rejoin, the locked level field, mobile layout, and a 403 for a signed-in teacher.
+
+### Not included
+- Anything that gives a group a teacher, makes an English group assessable, or touches `class_subject`, assessments, report cards, or the planning entities.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 2a-i
 
 ### Added

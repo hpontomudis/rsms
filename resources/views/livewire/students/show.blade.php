@@ -218,7 +218,14 @@
         <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-sm font-semibold text-slate-700">Academics</h2>
-                <a href="{{ route('students.report-card', $student) }}" class="text-sm font-medium text-slate-600 hover:text-slate-900">View Report Card</a>
+                <div class="flex items-center gap-4">
+                    {{-- Placement is academic administration, so it follows academics.manage
+                         rather than the student-view permission that opened this page. --}}
+                    @can('viewAny', \App\Models\StudentEnglishLevelPlacement::class)
+                        <a href="{{ route('students.english-placement', $student) }}" class="text-sm font-medium text-slate-600 hover:text-slate-900">English Proficiency</a>
+                    @endcan
+                    <a href="{{ route('students.report-card', $student) }}" class="text-sm font-medium text-slate-600 hover:text-slate-900">View Report Card</a>
+                </div>
             </div>
             <ul class="divide-y divide-slate-100 text-sm">
                 @forelse ($recentAssessmentResults as $result)

@@ -134,7 +134,7 @@ Features:
 
 ## V5 — Academic & Teaching Administration
 
-Status: **Steps 0, 1 and 2a-i complete; planning entities not started.** The architecture is approved. Step 0 (effective-dated teaching assignments) and Step 1 (academic-period canonicalisation) modified existing modules and are documented under V1 Classes / V4 Academics above. Step 2a-i (English programmes & proficiency levels) is a new module, documented immediately below. **None of the planning entities listed further down exist yet.**
+Status: **Steps 0, 1, 2a-i and 2a-ii complete; planning entities not started.** The architecture is approved. Step 0 (effective-dated teaching assignments) and Step 1 (academic-period canonicalisation) modified existing modules and are documented under V1 Classes / V4 Academics above. Steps 2a-i and 2a-ii are new modules, documented immediately below. **None of the planning entities listed further down exist yet.**
 
 ### English Programmes & Proficiency Levels *(Phase 5 Step 2a-i)*
 Status: Complete
@@ -157,7 +157,39 @@ Rules enforced at the **database** level, not just in the UI:
 
 Implementation note worth keeping: the grade pivot is a real Eloquent model (`EnglishProgrammeGrade`), not a `belongsToMany` write path. `attach()`/`detach()`/`sync()` go through the query builder and fire no model events, so an `Auditable` pivot written that way records nothing — verified empirically, not assumed. All writes go through `create()`/`delete()`; `grades()` exists but is marked read-only.
 
-Not yet built (Step 2a-ii onward, awaiting approval): teaching groups, group membership, per-student level placement, and anything that assigns a student *to* a level.
+### Teaching Groups & English Placement *(Phase 5 Step 2a-ii)*
+Status: Complete
+
+Where Step 2a-i recorded the standards, this records the operational reality: which students are actually grouped together, and what level each has been assessed at. **These are two separate facts and the system never syncs one to the other** — a student assessed Blue may legitimately still attend Green A, and a re-assessment is information for a human deciding whether to move them, not an instruction to move them.
+
+Features:
+- **Teaching groups**, scoped to one academic year: list (filtered by year), create, edit, archive. A group carrying an English level is an English proficiency group; one without is a generic group (Choir, Chess Club). There is no `kind` enum — Remedial/OSN/Elective categories will be designed when there are real requirements for them.
+- **Groups are never generated from English levels.** A level is a standard; a group is a room of students in one year. "Green" may run as one group, as Green A + Green B, or not at all. No production seed data.
+- **Roster management**: add an eligible student, end a membership, with active and historical members shown separately. Membership is effective-dated (`started_on`/`ended_on`) following the Step 0 pattern — a student may leave a group and return later, and both stints survive.
+- **English placement** per student: current assessed level, full history, and change-of-level by close-and-open. Optional `assessed_on`, reason, and notes. The screen also shows which groups the student actually attends, so the two facts sit side by side.
+- Read and write both require `academics.manage` — see Authorization below.
+- Audit-logged: group create/update/archive, membership add/end, placement create/close/change.
+
+Rules enforced at the **database** level:
+- `unique(academic_year_id, name)` on groups — the same group name recurs each year
+- Partial unique index `UNIQUE(teaching_group_id, student_id) WHERE ended_on IS NULL` — one open membership per group+student, any number of closed ones behind it. Deliberately not `class_student`'s flat uniqueness, which would forbid returning to a group.
+- Partial unique index `UNIQUE(student_id) WHERE ended_on IS NULL` on placements — exactly one open assessed level per student
+- `RESTRICT` on every foreign key: academic year, English level, group, student
+
+Rules enforced in the **application** (`app/Services/`), because they cannot be expressed as constraints without denormalising:
+- **Grade eligibility.** For an English group, the student's grade must be covered by that group's programme. Resolved through the existing class structure only — student → active `class_student` → class in the group's academic year → grade → programme. No second student-grade field was introduced.
+- **One English group per programme at a time.** A student may not have two open memberships whose groups belong to the same English programme. Generic groups are unconstrained and may overlap freely. Enforced in a transaction that locks the student row first, so two administrators acting at once serialise rather than both passing the check. A unique index would require copying `english_programme_id` onto the membership row, which was judged worse than the check.
+- **Membership dates fall inside the group's academic year**, and `ended_on >= started_on`. Safe because `academic_years.start_date`/`end_date` are both NOT NULL.
+- **A group's English level is locked once it has ever had a member** — changing it would rewrite what the group was and who had been eligible for it.
+
+Authorization is deliberately stricter than Step 2a-i: rosters and placements require `academics.manage`, not `academics.view`. Teachers hold `academics.view`, and until Step 2b records which teacher teaches which group there is no basis on which to scope a teacher's access — so they get none rather than all. Programme/level reference data stays readable to teachers; it names no students. `StudentPolicy` was not touched.
+
+Known ambiguity carried over from Phase 1 (documented, not redesigned here): `class_student` is flat, with a `status` enum and no effective dating, and nothing stops a student holding two `active` rows for different classes in the same year. `Student::currentClass()` resolves that with `first()`. Eligibility checks must not be silent, so `StudentGradeResolver` refuses to guess: if the active classes for a year point at more than one distinct grade it reports the data problem instead of picking one.
+
+Not yet built (Step 2b onward, awaiting approval): teaching assignments for groups — nothing yet records who *teaches* a group, and English groups are not assessable.
+
+### Planning Entities *(Phase 5 Step 2b onward)*
+Status: **Proposed** — architecture approved, no code
 
 Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data, anchored to the existing `class_subject` "teaching assignment" record so teacher/subject/class/grade/academic-year never need re-entering.
 

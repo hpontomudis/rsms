@@ -6,7 +6,7 @@
 | Organization | Yayasan Pendidikan Halmahera Membangun Bangsa |
 | Location | North Halmahera, Indonesia |
 | Document type | Living master blueprint — update only for material changes (see rule at bottom) |
-| Last updated | 2026-08-10 (V4.5 built — Phase 5 Steps 0/1/2a-i; V5 planning entities approved, not started) |
+| Last updated | 2026-08-10 (V4.6 built — Phase 5 Steps 0/1/2a-i/2a-ii; V5 planning entities approved, not started) |
 
 ---
 
@@ -58,7 +58,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 - **Frontend:** Blade + Livewire 4 (full-page components, no separate SPA/API layer), Tailwind CSS v4
 - **Auth:** Laravel session auth. Accounts are **admin-provisioned** — there is no self-registration screen.
 - **Authorization:** one Eloquent Policy per core model (`app/Policies/`), backed by spatie permissions. A `Gate::before` hook in `AppServiceProvider` grants `super_admin` everything.
-- **Audit logging:** an `Auditable` trait (`app/Models/Concerns/Auditable.php`) writes to `audit_logs` on create/update/delete. Currently applied to: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`.
+- **Audit logging:** an `Auditable` trait (`app/Models/Concerns/Auditable.php`) writes to `audit_logs` on create/update/delete. Currently applied to: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`. Note that `attach()`/`detach()`/`sync()` fire no Eloquent events, so link tables that must be audited are written as full models, never through a `belongsToMany` write.
 - **Soft deletes:** `Student`, `Guardian`, `Staff` — archived, never hard-deleted, so historical records (attendance, invoices, assessments) stay intact.
 - **Brand identity:** Rahai's official crest, color palette (`#171F46` navy / `#575D79` slate / `#F3C445` gold / `#AAADBB` grey), and primary typeface (Libre Baskerville) are applied to the UI chrome (sidebar, buttons, headings); data tables stay neutral for legibility.
 - **App shell:** grouped left sidebar navigation (People / Academics / Finance sections), permission-driven — a section header only renders if the current role can see at least one item in it.
@@ -71,7 +71,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Attendance | V2 | Complete |
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
-| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0, 1 and 2a-i built; the planning entities themselves not started |
+| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0, 1, 2a-i and 2a-ii built; the planning entities themselves not started |
 | Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
 | Communication | V7 | Planned |
 | AI-assisted reporting | V8 | Planned |
@@ -130,7 +130,8 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V4.2 | Staff position type-to-add + new default positions | Complete (current build) |
 | V4.3 | Phase 5 Step 0 — effective-dated teaching assignments | Complete |
 | V4.4 | Phase 5 Step 1 — academic-period canonicalisation | Complete |
-| V4.5 | Phase 5 Step 2a-i — English programmes & proficiency levels | Complete (current build) |
+| V4.5 | Phase 5 Step 2a-i — English programmes & proficiency levels | Complete |
+| V4.6 | Phase 5 Step 2a-ii — teaching groups, membership, English placement | Complete (current build) |
 | V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
 | V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
 | V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |
@@ -139,7 +140,7 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 ## 12. Future Roadmap (not committed, not designed in detail)
 
 - **Academic & Teaching Administration (V5)** — Curriculum, Capaian Pembelajaran (CP), Tujuan Pembelajaran (TP), Alur Tujuan Pembelajaran (ATP), Program Tahunan (Prota), Program Semester (Prosem), Teaching Modules (Modul Ajar), Daily Teacher Journal (Jurnal Harian Guru), and teaching-administration dashboards. Full architecture proposal exists (see repository conversation history / commit for the Phase 5 proposal) — anchors everything to the existing `class_subject` "teaching assignment" record rather than duplicating teacher/subject/class/academic-year data. Its prerequisite steps are built (effective-dated assignments, academic periods, English programmes); **the planning entities themselves are not implemented and await explicit go-ahead.**
-- **Non-class-based teaching groups (V5 Step 2a-ii onward)** — English is taught in proficiency groups that cut across classes. Step 2a-i built the *reference* half of this (which programmes and levels exist, and which grades they apply to). Still to come: teaching groups, group membership, and per-student level placement. **Not implemented.**
+- **Teaching assignments for groups (V5 Step 2b)** — Steps 2a-i and 2a-ii built the whole non-class-based roster picture: which programmes and levels exist, which grades they cover, which students are grouped together, and what level each student has been assessed at. What is still missing is who *teaches* a group: `class_subject` has to become a generic teaching-assignment anchor first. Until it does, English groups are not assessable and teachers have no roster access. **Not implemented.**
 - Document generation (V6) — structured Phase 5 data rendered into printable Prota/Prosem/ATP/Modul Ajar/Jurnal/Rapor documents. Explicitly deferred until Phase 5's data model exists and is stable.
 - Parent portal (login scoped via `student_guardian`, read-only view of their own children's attendance/fees/grades).
 - Excel/CSV bulk import + export for Students (and later Guardians/Staff) — requested, not yet scoped or built. Design note: guardian relationships don't fit one flat row cleanly; likely solved with repeated `guardian_1_*`/`guardian_2_*` columns rather than a second linked sheet.

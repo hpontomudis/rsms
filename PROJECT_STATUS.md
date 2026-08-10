@@ -1,7 +1,7 @@
 # Project Status
 
-**Current Version:** V4.5 — Phase 5 **Steps 0, 1 and 2a-i complete**; Phase 5 planning entities not started
-**Current Phase:** Phase 5 architecture approved. **Step 0 (effective-dated teaching assignments), Step 1 (academic-period canonicalisation) and Step 2a-i (English programmes & proficiency levels) are implemented, tested, and verified.** The Phase 5 planning entities (Curriculum, CP, TP, ATP, Prota, Prosem, Teaching Modules, Daily Journals) and the rest of the teaching-group work (Step 2a-ii onward) are approved in design but **not started** — awaiting explicit go-ahead.
+**Current Version:** V4.6 — Phase 5 **Steps 0, 1, 2a-i and 2a-ii complete**; Phase 5 planning entities not started
+**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels) and 2a-ii (teaching groups, membership, English placement) are implemented, tested, and verified.** Step 2b (extending `class_subject` into a generic teaching-assignment anchor) and the planning entities (Curriculum, CP, TP, ATP, Prota, Prosem, Teaching Modules, Daily Journals) are approved in design but **not started** — awaiting explicit go-ahead.
 **Last verified:** 2026-08-10 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
@@ -16,15 +16,16 @@
 - **Sidebar navigation redesign (V4.1):** grouped, permission-driven sidebar replacing the old horizontal nav
 - **Staff position type-to-add (V4.2):** free-type-or-pick position field; added Support Staff / Building Staff to defaults
 - **English Programmes (V4.5 / Phase 5 Step 2a-i):** proficiency frameworks (Primary colour levels, Junior High Level A/B/C) with per-programme level ordering, archive-not-delete levels, and grade applicability
+- **Teaching Groups & English Placement (V4.6 / Phase 5 Step 2a-ii):** year-scoped groups (English or generic), effective-dated membership with rejoin history, and per-student assessed proficiency kept deliberately independent of which group they attend
 
 ## In Progress
 
-- **Phase 5 Steps 0, 1 and 2a-i are complete.** Nothing else is in progress; Step 2a-ii (teaching groups, membership, student level placement) and the Curriculum entity onward await approval.
+- **Phase 5 Steps 0, 1, 2a-i and 2a-ii are complete.** Nothing else is in progress; Step 2b (teaching assignments) and the Curriculum entity onward await approval.
 
 ## Next (pending user instruction)
 
-- Phase 5 Step 2a-ii: `teaching_groups`, `teaching_group_student`, `student_english_level_placements` — the half of the English design that puts actual students into groups and levels. Step 2a-i deliberately built only the reference data.
-- Phase 5 Steps 2b–11: Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
+- Phase 5 Step 2b: extend `class_subject` into a generic teaching-assignment anchor so a group can have a teacher. Nothing today records who teaches a teaching group, which is also why teachers have no roster access yet.
+- Phase 5 Steps 2c–11: Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
 - Later cleanup migration: drop the deprecated `assessments.term` column once the new architecture has proven stable.
 - The "successor teacher can read predecessor planning" test is deliberately deferred to the ATP step, since no Phase 5 planning entity exists yet to test against.
 - Scope and build Excel import/export (Students first) — waiting on admin staff to confirm what data/columns their existing spreadsheets contain.
@@ -46,6 +47,9 @@
 - **Modular monolith**, not microservices — one Laravel app, one database, feature-organized folders.
 - **Invoice balance/status is always computed**, never stored as a mutable field (`Invoice::balance()`, `Invoice::refreshStatus()`) — chosen specifically to prevent the finance ledger from ever drifting out of sync.
 - **Policy-layer scoping, not just UI-hiding**, for teacher access (own classes/subjects only) — verified via direct-URL-access tests, not just "the button isn't shown."
+- **Group membership and assessed proficiency are separate facts, never synchronised.** A student assessed Blue may legitimately still attend Green A. Recording a new level closes the old one and opens a new one; it does not touch group membership, because moving a student is a human decision that a re-assessment only informs.
+- **Two integrity rules live in services, not constraints.** Grade eligibility for an English group, and "one open English group per programme", both depend on a join path (group → level → programme) that a unique index cannot express without copying `english_programme_id` onto the membership row. They are enforced in `app/Services/` inside a transaction that locks the student row first. Documented as application-level so nobody assumes the database is the backstop.
+- **A student's grade is resolved only through the existing class structure.** `StudentGradeResolver` is the single place that knows the path, and it refuses to guess: where Phase 1's flat `class_student` allows a student two active classes in different grades in one year, it reports the ambiguity rather than picking one the way `Student::currentClass()` does.
 - **Proficiency levels are scoped per programme, never globally.** Rahai runs more than one English framework at once, so uniqueness on level name and sequence is `(programme, name)` and `(programme, sequence)` — "Level A" can legitimately exist in two frameworks. A grade maps to at most one programme (`UNIQUE(grade_id)`), enforced by the database rather than the UI.
 - **Pivot writes go through a real model, never `attach()`/`sync()`.** Those methods operate through the query builder and fire no Eloquent events, so an `Auditable` pivot written that way silently records nothing. Verified empirically before relying on it; `EnglishProgrammeGrade` is a full model and its `belongsToMany` counterpart is marked read-only.
 - **Academic periods are data, not constants.** `academic_periods` (Semester 1/2 for Rahai) replaced the hardcoded Term 1/2/3 vocabulary; the report card renders whatever periods a year defines, ordered by `sequence`. `assessments.term` is deprecated and unreferenced, pending a later drop migration.
@@ -56,14 +60,14 @@
 ## Database Status
 
 - PostgreSQL 17, local dev instance (`rahai_sms` database).
-- 36 migrations, all applied cleanly; verified both as an in-place upgrade of the dev database and as a from-scratch migrate + seed on an isolated throwaway database (`rahai_sms_verify`, since dropped).
+- 39 migrations, all applied cleanly; verified both as an in-place upgrade of the dev database and as a from-scratch migrate + seed on an isolated throwaway database (`rahai_sms_verify`, since dropped).
 - Soft-deletes on: `students`, `guardians`, `staff`.
-- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`.
+- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`.
 
 ## Testing Status
 
-- **77/77 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
-- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), plus 1 baseline routing test.
+- **122/122 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
+- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (45), plus 1 baseline routing test.
 - Tests focus on business rules and authorization scoping (e.g. "a teacher cannot record attendance for a class they don't teach," "an invoice's items lock once a payment exists") rather than exhaustive UI coverage.
 - Every module has also been manually verified end-to-end in-browser (desktop + mobile viewports, across at least two roles) before being marked complete.
 

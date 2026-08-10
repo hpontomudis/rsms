@@ -102,6 +102,23 @@ class Student extends Model
     }
 
     /**
+     * Teaching-group memberships, open and closed. No belongsToMany shortcut:
+     * writes must go through the model so they are audited.
+     */
+    public function teachingGroupMemberships(): HasMany
+    {
+        return $this->hasMany(TeachingGroupStudent::class);
+    }
+
+    /**
+     * Assessed English proficiency over time, newest first.
+     */
+    public function englishPlacements(): HasMany
+    {
+        return $this->hasMany(StudentEnglishLevelPlacement::class)->orderByDesc('started_on');
+    }
+
+    /**
      * Restrict a query to students enrolled in a class the given staff member teaches.
      */
     public function scopeTaughtBy(Builder $query, int $staffId): Builder
