@@ -16,7 +16,7 @@
                     @forelse ($periods as $period)
                         <option value="{{ $period->id }}">{{ $period->name }}</option>
                     @empty
-                        <option value="">No periods defined for {{ $classSubject->schoolClass->academicYear->name }}</option>
+                        <option value="">No periods defined for {{ $classSubject->academicYear()->name }}</option>
                     @endforelse
                 </select>
                 @error('academic_period_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror

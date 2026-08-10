@@ -18,7 +18,8 @@ class Index extends Component
 
     public function mount(): void
     {
-        $this->classSubject = ClassSubject::with('subject', 'teacher', 'schoolClass')->findOrFail($this->class_subject_id);
+        $this->classSubject = ClassSubject::with('subject', 'teacher', 'schoolClass', 'teachingGroup')
+            ->findOrFail($this->class_subject_id);
         $this->authorize('viewFor', [Assessment::class, $this->classSubject]);
     }
 

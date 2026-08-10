@@ -21,10 +21,13 @@ class Show extends Component
     public function mount(Assessment $assessment): void
     {
         $this->authorize('view', $assessment);
-        $this->assessment = $assessment->load('classSubject.subject', 'classSubject.schoolClass', 'classSubject.teacher');
+        $this->assessment = $assessment->load(
+            'classSubject.subject', 'classSubject.schoolClass', 'classSubject.teachingGroup', 'classSubject.teacher'
+        );
 
-        $students = $this->assessment->classSubject->schoolClass
-            ->students()->wherePivot('status', 'active')->get();
+        // Roster as at the assessment date, plus anyone already scored --
+        // see Assessment::scoreSheetStudents().
+        $students = $this->assessment->scoreSheetStudents();
 
         $existing = $this->assessment->results()->get()->keyBy('student_id');
 
@@ -39,14 +42,25 @@ class Show extends Component
     {
         $this->authorize('recordScores', $this->assessment);
 
+        // The form is not the authority on who may be scored. A tampered
+        // payload could carry any student id, so writes are checked against
+        // the assessment's own allowlist -- roster on the day, plus students
+        // already holding a result. Sharing a grade with the group is not
+        // sufficient, and never has been for classes either.
+        $allowed = $this->assessment->scorableStudentIds()->all();
+
         $rules = [];
         foreach ($this->scores as $studentId => $score) {
+            if (! in_array((int) $studentId, $allowed, true)) {
+                continue;
+            }
+
             $rules["scores.{$studentId}"] = ['nullable', 'numeric', 'min:0', 'max:'.$this->assessment->max_score];
         }
         $this->validate($rules);
 
         foreach ($this->scores as $studentId => $score) {
-            if ($score === '' || $score === null) {
+            if ($score === '' || $score === null || ! in_array((int) $studentId, $allowed, true)) {
                 continue;
             }
 
@@ -61,11 +75,12 @@ class Show extends Component
 
     public function render()
     {
-        $students = $this->assessment->classSubject->schoolClass
-            ->students()->wherePivot('status', 'active')->orderBy('first_name')->get();
-
         return view('livewire.assessments.show', [
-            'students' => $students,
+            'students' => $this->assessment->scoreSheetStudents(),
+            // Used only to flag students kept on the sheet by an existing
+            // score rather than by current roster membership.
+            'currentRosterIds' => $this->assessment->classSubject
+                ->rosterStudentIdsOn($this->assessment->assessment_date)->all(),
             'canRecord' => Auth::user()->can('recordScores', $this->assessment),
         ]);
     }

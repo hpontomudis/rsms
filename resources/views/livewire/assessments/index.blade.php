@@ -1,10 +1,16 @@
 <div class="mx-auto max-w-2xl space-y-4">
-    <a href="{{ route('classes.show', $classSubject->schoolClass) }}" class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $classSubject->schoolClass->name }}</a>
+    <a href="{{ $classSubject->rosterUrl() }}" class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $classSubject->displayName() }}</a>
 
     <div class="flex flex-col gap-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-start sm:justify-between">
         <div>
             <h1 class="font-serif text-xl font-bold text-brand-navy">{{ $classSubject->subject->name }}</h1>
-            <p class="text-sm text-slate-500">{{ $classSubject->schoolClass->name }} &middot; taught by {{ $classSubject->teacher->fullName() }}</p>
+            <p class="text-sm text-slate-500">
+                {{ $classSubject->displayName() }}
+                @unless ($classSubject->isClassBacked())
+                    <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Teaching Group</span>
+                @endunless
+                &middot; taught by {{ $classSubject->teacher->fullName() }}
+            </p>
         </div>
         @can('createFor', [\App\Models\Assessment::class, $classSubject])
             <a href="{{ route('assessments.create', ['class_subject_id' => $classSubject->id]) }}" class="rounded-md bg-brand-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light">

@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use RuntimeException;
 
 /**
  * A TEACHING ASSIGNMENT: one subject, taught to one roster, by one staff
@@ -82,6 +85,112 @@ class ClassSubject extends Model
     public function isTeachingGroupBacked(): bool
     {
         return $this->teaching_group_id !== null;
+    }
+
+    // ------------------------------------------------ unified roster accessors
+    //
+    // Everything downstream of a teaching assignment -- assessments today,
+    // planning records later -- goes through these rather than branching on
+    // class_id. The point is that `Year 5A + Mathematics` and
+    // `Green A + English` expose one interface.
+
+    /**
+     * The academic year this assignment belongs to, from whichever roster
+     * source backs it.
+     *
+     * Never falls back to the year flagged current: an assignment whose
+     * roster source has no year is malformed, and quietly substituting
+     * today's year would attach assessments to the wrong reporting periods.
+     */
+    public function academicYear(): AcademicYear
+    {
+        $year = $this->isClassBacked()
+            ? $this->schoolClass?->academicYear
+            : $this->teachingGroup?->academicYear;
+
+        if (! $year) {
+            throw new RuntimeException(
+                "Teaching assignment #{$this->id} has no resolvable academic year; its roster source is missing or malformed."
+            );
+        }
+
+        return $year;
+    }
+
+    /**
+     * What this assignment is taught to -- "Year 5A" or "Green A".
+     */
+    public function displayName(): string
+    {
+        return $this->isClassBacked()
+            ? ($this->schoolClass?->name ?? 'Unknown class')
+            : ($this->teachingGroup?->name ?? 'Unknown group');
+    }
+
+    /**
+     * What KIND of thing that is, so the UI can say "Teaching Group" rather
+     * than calling Green A a class.
+     */
+    public function rosterLabel(): string
+    {
+        return $this->isClassBacked() ? 'Class' : 'Teaching Group';
+    }
+
+    /**
+     * Where to go to see the roster itself.
+     */
+    public function rosterUrl(): string
+    {
+        return $this->isClassBacked()
+            ? route('classes.show', $this->class_id)
+            : route('teaching-groups.show', $this->teaching_group_id);
+    }
+
+    /**
+     * The students on this assignment's roster as at $on.
+     *
+     * DATE SEMANTICS, which differ by source because the underlying data does:
+     *
+     *  - Teaching group: genuinely date-aware. teaching_group_student is
+     *    effective-dated, so membership counts when started_on <= $on and the
+     *    membership had not yet ended on $on. A student who left in December is
+     *    on the November roster and off the January one.
+     *
+     *  - Administrative class: NOT date-aware, because class_student is not
+     *    effective-dated -- it carries a status enum and no end date (recorded
+     *    as technical debt in Step 2a-ii). The roster is therefore the current
+     *    `active` membership, exactly as before this step. $on is accepted and
+     *    ignored rather than faked: inventing a date filter from enrolled_at
+     *    alone would silently change every existing class assessment.
+     */
+    public function rosterOn(Carbon $on): Collection
+    {
+        if ($this->isClassBacked()) {
+            return $this->schoolClass
+                ? $this->schoolClass->students()->wherePivot('status', 'active')->get()
+                : collect();
+        }
+
+        if (! $this->teachingGroup) {
+            return collect();
+        }
+
+        $studentIds = $this->teachingGroup->memberships()
+            ->whereDate('started_on', '<=', $on)
+            ->where(fn ($q) => $q->whereNull('ended_on')->orWhereDate('ended_on', '>=', $on))
+            ->pluck('student_id');
+
+        return Student::whereIn('id', $studentIds)->get();
+    }
+
+    /**
+     * Roster ids as at $on. Deliberately date-taking rather than a bare
+     * "current roster" helper -- an ambiguous accessor is exactly how a
+     * historical assessment ends up silently losing students.
+     */
+    public function rosterStudentIdsOn(Carbon $on): Collection
+    {
+        return $this->rosterOn($on)->pluck('id');
     }
 
     public function subject(): BelongsTo

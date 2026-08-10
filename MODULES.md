@@ -192,8 +192,8 @@ Authorization is deliberately stricter than Step 2a-i: rosters and placements re
 
 Known ambiguity carried over from Phase 1 (documented, not redesigned here): `class_student` is flat, with a `status` enum and no effective dating, and nothing stops a student holding two `active` rows for different classes in the same year. `Student::currentClass()` resolves that with `first()`. Eligibility checks must not be silent, so `StudentGradeResolver` refuses to guess: if the active classes for a year point at more than one distinct grade it reports the data problem instead of picking one.
 
-### Teaching Assignments for Teaching Groups *(Phase 5 Step 2b)*
-Status: Complete — **structure only; not yet assessable**
+### Teaching Assignments for Teaching Groups *(Phase 5 Steps 2b + 2c)*
+Status: Complete — **assessable; not yet on report cards**
 
 A teaching group can now be given a subject and a teacher, stored as an ordinary `class_subject` row with `class_id` NULL and `teaching_group_id` set. There is deliberately no separate `teaching_group_subject` table.
 
@@ -212,12 +212,30 @@ Enforced in the **service** (`TeachingAssignmentService`): assignment dates must
 
 Enforced on the **model**: a row's roster source is immutable. Repointing an assignment from one class to another, from a class to a group, or from Green A to Blue A throws — the supported answer is to end the assignment and open the correct one.
 
-**Not implemented yet, deliberately:**
-- Teaching-group assessments. `Assessments\Create` still resolves its academic year through `classSubject->schoolClass`, so it works for class-backed assignments only. Nothing in the UI links to it from a group. *(Step 2c)*
-- ReportCard integration. Report cards do not discover group-backed assignments and English-group results do not appear. *(Step 2d)*
-- Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' records, and teachers cannot see teaching groups at all. *(later step)*
+#### Assessments for teaching groups *(Step 2c)*
 
-Not yet built (awaiting approval): the unified roster accessors (`roster()`, `rosterStudentIds()`, `academicYear()`, `displayName()`) that Step 2c will introduce and switch assessment consumers onto.
+**One assessment engine, one score store.** A group-backed assignment creates rows in `assessments` and `assessment_results` through exactly the same screens and the same code as a class-backed one. There is no `english_assessments`, no `teaching_group_results`, and no parallel workflow — verified by a test that asserts those tables do not exist.
+
+Downstream code no longer branches on `class_id`. `ClassSubject` exposes:
+- `academicYear()` — from the class or the group, whichever backs it. Throws rather than falling back to the year flagged current, so a malformed assignment fails loudly instead of attaching assessments to the wrong reporting periods
+- `displayName()` — "Year 5A" or "Green A"
+- `rosterLabel()` — "Class" or "Teaching Group", so the UI never calls Green A a class
+- `rosterUrl()` — back to the class or group page
+- `rosterOn($date)` / `rosterStudentIdsOn($date)` — deliberately date-taking, because an ambiguous "current roster" accessor is exactly how a historical assessment loses students
+
+**Roster date semantics**, which differ by source because the underlying data does:
+- *Teaching group* — genuinely date-aware. A student counts when `started_on <= date` and the membership had not ended by then. A student who left on 15 December is on the November score sheet and off the January one.
+- *Administrative class* — not date-aware, because `class_student` is not effective-dated (recorded under Technical Debt). The roster stays the current `active` membership, exactly as before Step 2c. The date argument is accepted and ignored rather than faked.
+
+**Historical results never disappear.** An assessment's score sheet is the roster as at `assessment_date` **union** everyone who already holds a result on it. A student who scored 85 in Green A and later moved to Blue A still appears on the Green A assessment with their 85 — a mark does not stop being true because a student moved. Nothing is snapshotted: `assessment_results` already records who was scored.
+
+**Write safety.** Scores are checked against that same union on save, so a tampered form payload cannot invent a student who was never on the roster. Sharing a grade with the group is explicitly not sufficient — group membership is authoritative.
+
+Assessment dates and periods come from the assignment's own academic year, so a Green A assessment offers only that year's Semester 1 / Semester 2. `assessments.assessment_date` already existed and is reused as the roster date; no new column was added.
+
+**Not implemented yet, deliberately:**
+- ReportCard integration. A group-backed result is stored correctly but does **not** surface on the student's report card; `ReportCard` still discovers assignments by `class_id` only. *(Step 2d)*
+- Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' profiles, and teachers cannot see the teaching-group screens at all. Their assessment access comes through the teaching assignment, not through the group. *(later step)*
 
 ### Planning Entities *(Phase 5 Step 2b onward)*
 Status: **Proposed** — architecture approved, no code

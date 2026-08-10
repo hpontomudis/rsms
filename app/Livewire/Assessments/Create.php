@@ -27,7 +27,8 @@ class Create extends Component
 
     public function mount(): void
     {
-        $this->classSubject = ClassSubject::with('subject', 'schoolClass')->findOrFail($this->class_subject_id);
+        $this->classSubject = ClassSubject::with('subject', 'schoolClass.academicYear', 'teachingGroup.academicYear')
+            ->findOrFail($this->class_subject_id);
         $this->authorize('createFor', [Assessment::class, $this->classSubject]);
         $this->assessment_date = now()->toDateString();
 
@@ -42,10 +43,11 @@ class Create extends Component
             'name' => ['required', 'string', 'max:100'],
             'academic_period_id' => [
                 'required',
-                // Scoped to this assignment's own academic year: an assessment
-                // must never reference a period from a different year.
+                // Scoped to this assignment's own academic year -- resolved
+                // through the roster source, whichever it is, so a group-backed
+                // assignment gets its group's year rather than erroring.
                 Rule::exists('academic_periods', 'id')
-                    ->where('academic_year_id', $this->classSubject->schoolClass->academic_year_id),
+                    ->where('academic_year_id', $this->classSubject->academicYear()->id),
             ],
             'max_score' => ['required', 'numeric', 'min:1', 'max:1000'],
             'assessment_date' => ['required', 'date'],
@@ -62,7 +64,7 @@ class Create extends Component
      */
     public function periods()
     {
-        return $this->classSubject->schoolClass->academicYear->periods;
+        return $this->classSubject->academicYear()->periods;
     }
 
     public function render()

@@ -4,6 +4,35 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 - Phase 5 Step 2c
+
+### Added
+- **Unified teaching-assignment accessors on `ClassSubject`**, so downstream academic code stops branching on `class_id`: `academicYear()`, `displayName()`, `rosterLabel()`, `rosterUrl()`, `rosterOn($date)`, `rosterStudentIdsOn($date)`. `Year 5A + Mathematics` and `Green A + English` now expose one interface.
+- **Teaching-group assessments.** A group-backed assignment creates assessments and records scores through the same screens, the same `assessments` table and the same `assessment_results` store as any class. No `english_assessments`, no `teaching_group_results` — asserted by test.
+- An Assessments link on each active teaching assignment on the group screen.
+
+### Fixed
+- **The Step 2b boundary defect.** Assessment creation resolved its academic year through `classSubject->schoolClass`, so a group-backed assignment errored. It now resolves through `academicYear()`, which reads the class or the group as appropriate and throws on a malformed assignment rather than falling back to the year flagged current.
+
+### Changed
+- Assessment score sheets are now the roster as at `assessment_date` **union** everyone who already holds a result. A student who scored 85 in Green A and later moved to Blue A keeps their 85 on the Green A assessment; the union is derived from `assessment_results`, so nothing is snapshotted and nothing can drift.
+- Score writes are checked against that same union, so a tampered payload cannot score a student who was never on the roster. Sharing a grade with the group is not sufficient - group membership is authoritative.
+- Assessment screens use `displayName()` and show a "Teaching Group" tag rather than labelling Green A a class.
+- `assessments.assessment_date` already existed and is reused as the roster date. No new column was introduced.
+
+### Roster date semantics
+- Teaching group: date-aware. Membership counts when `started_on <= date` and it had not ended by then.
+- Administrative class: NOT date-aware, because `class_student` is not effective-dated. The roster remains the current `active` membership, exactly as before. The date argument is accepted and ignored rather than faked - changing this would silently alter every existing class assessment.
+
+### Not included, deliberately
+- ReportCard is untouched. A group-backed result is stored correctly but does not surface on the report card; `ReportCard` still discovers assignments by `class_id` only. A test asserts this is still the case. *(Step 2d)*
+- `StudentPolicy` is untouched. No change was needed: assessment access flows through the teaching assignment, and the score screens never consult it.
+
+### Tests
+- New `TeachingAssignmentAssessmentTest` (29 tests) covering accessors, creation for both sources, period scoping, roster date semantics, historical-result preservation, write safety, the score engine, teacher scoping for both sources, and an explicit assertion that ReportCard has not changed. Suite: 166 to 195 passing.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 2b
 
 ### Added

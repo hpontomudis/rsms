@@ -6,7 +6,11 @@
     <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h1 class="font-serif text-xl font-bold text-brand-navy">{{ $assessment->name }}</h1>
         <p class="text-sm text-slate-500">
-            {{ $assessment->classSubject->schoolClass->name }} &middot; {{ $assessment->classSubject->subject->name }}
+            {{ $assessment->classSubject->displayName() }}
+            @unless ($assessment->classSubject->isClassBacked())
+                <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Teaching Group</span>
+            @endunless
+            &middot; {{ $assessment->classSubject->subject->name }}
             &middot; {{ $assessment->academicPeriod->name }} &middot; {{ $assessment->assessment_date->format('d M Y') }}
         </p>
         <p class="mt-1 text-xs text-slate-400">Max score: {{ (int) $assessment->max_score }}</p>
@@ -22,7 +26,13 @@
         <div class="divide-y divide-slate-100">
             @foreach ($students as $student)
                 <div class="flex items-center justify-between gap-3 py-3">
-                    <span class="font-medium text-slate-900">{{ $student->fullName() }}</span>
+                    <span class="font-medium text-slate-900">
+                        {{ $student->fullName() }}
+                        @unless (in_array($student->id, $currentRosterIds, true))
+                            {{-- Kept on the sheet because they already hold a score here. --}}
+                            <span class="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-normal text-amber-800">no longer on this roster</span>
+                        @endunless
+                    </span>
                     <div class="flex items-center gap-1.5">
                         <input
                             type="number"

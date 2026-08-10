@@ -196,10 +196,17 @@
                                     {{ $assignment->teacher->fullName() }} &middot; since {{ $assignment->started_on->format('d M Y') }}
                                 </p>
                             </div>
-                            @can('update', $teachingGroup)
-                                <button type="button" wire:click="startEndingAssignment({{ $assignment->id }})"
-                                    class="flex-shrink-0 text-xs text-red-500 hover:text-red-700">End</button>
-                            @endcan
+                            <div class="flex flex-shrink-0 items-center gap-3">
+                                {{-- Only for assignments the viewer may actually see assessments for. --}}
+                                @can('viewFor', [\App\Models\Assessment::class, $assignment])
+                                    <a href="{{ route('assessments.index', ['class_subject_id' => $assignment->id]) }}"
+                                        class="text-xs font-medium text-brand-navy hover:underline">Assessments</a>
+                                @endcan
+                                @can('update', $teachingGroup)
+                                    <button type="button" wire:click="startEndingAssignment({{ $assignment->id }})"
+                                        class="text-xs text-red-500 hover:text-red-700">End</button>
+                                @endcan
+                            </div>
                         </div>
 
                         @if ($endingAssignmentId === $assignment->id)
@@ -239,9 +246,9 @@
         @endif
 
         <p class="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Assessments and report cards do not read teaching-group assignments yet. The
-            assignment is recorded, but scores for this group cannot be entered until a
-            later step connects them.
+            Assessments for this group use the same assessment engine and the same score
+            store as any class. Report cards do not yet surface these results &mdash; that
+            comes in a later step.
         </p>
     </div>
 </div>
