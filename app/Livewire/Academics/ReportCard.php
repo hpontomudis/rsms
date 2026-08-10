@@ -42,34 +42,42 @@ class ReportCard extends Component
                 ->where('academic_year_id', $this->academic_year_id)
                 ->pluck('classes.id');
 
-            $classSubjects = ClassSubject::whereIn('class_id', $classIds)
+            // Grouped by subject, NOT by assignment: a subject whose teacher
+            // changed mid-year has several class_subject rows, and the report
+            // card must show it once with every assessment merged in --
+            // regardless of which teacher recorded which.
+            $rows = ClassSubject::whereIn('class_id', $classIds)
                 ->with('subject')
-                ->get();
+                ->get()
+                ->groupBy('subject_id')
+                ->map(function ($assignments) use ($terms) {
+                    $subject = $assignments->first()->subject;
+                    $assignmentIds = $assignments->pluck('id');
 
-            $rows = $classSubjects->map(function (ClassSubject $classSubject) use ($terms) {
-                $results = AssessmentResult::where('student_id', $this->student->id)
-                    ->whereHas('assessment', fn ($q) => $q->where('class_subject_id', $classSubject->id))
-                    ->with('assessment')
-                    ->get();
+                    $results = AssessmentResult::where('student_id', $this->student->id)
+                        ->whereHas('assessment', fn ($q) => $q->whereIn('class_subject_id', $assignmentIds))
+                        ->with('assessment')
+                        ->get();
 
-                $percentages = fn ($group) => $group->map(
-                    fn (AssessmentResult $r) => (float) $r->score / (float) $r->assessment->max_score * 100
-                );
+                    $percentages = fn ($group) => $group->map(
+                        fn (AssessmentResult $r) => (float) $r->score / (float) $r->assessment->max_score * 100
+                    );
 
-                $termAverages = collect($terms)->mapWithKeys(function ($term) use ($results, $percentages) {
-                    $inTerm = $results->filter(fn (AssessmentResult $r) => $r->assessment->term === $term);
+                    $termAverages = collect($terms)->mapWithKeys(function ($term) use ($results, $percentages) {
+                        $inTerm = $results->filter(fn (AssessmentResult $r) => $r->assessment->term === $term);
 
-                    return [$term => $inTerm->isNotEmpty() ? round($percentages($inTerm)->avg()) : null];
-                });
+                        return [$term => $inTerm->isNotEmpty() ? round($percentages($inTerm)->avg()) : null];
+                    });
 
-                $overall = $results->isNotEmpty() ? round($percentages($results)->avg()) : null;
+                    $overall = $results->isNotEmpty() ? round($percentages($results)->avg()) : null;
 
-                return (object) [
-                    'subject' => $classSubject->subject,
-                    'termAverages' => $termAverages,
-                    'overall' => $overall,
-                ];
-            });
+                    return (object) [
+                        'subject' => $subject,
+                        'termAverages' => $termAverages,
+                        'overall' => $overall,
+                    ];
+                })
+                ->values();
 
             $withOverall = $rows->pluck('overall')->filter(fn ($v) => $v !== null);
             $overallAverage = $withOverall->isNotEmpty() ? round($withOverall->avg()) : null;

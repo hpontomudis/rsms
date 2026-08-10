@@ -1,7 +1,7 @@
 # Project Status
 
-**Current Version:** V4.2 (built) — V5.0 architecture proposed, not yet approved or implemented
-**Current Phase:** Academics (V4) complete and stable. Phase 5 — Academic & Teaching Administration — has a full architecture report and database design written up; **implementation has not started** and will not until explicitly approved.
+**Current Version:** V4.3 — Phase 5 **Step 0 complete**; Phase 5 entities not started
+**Current Phase:** Phase 5 architecture approved. **Step 0 (effective-dated teaching assignments) is implemented, tested, and verified.** Step 1 (academic-period migration) and all Phase 5 entities are approved in design but **not started** — awaiting explicit go-ahead.
 **Last verified:** 2026-08-10 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
@@ -18,13 +18,13 @@
 
 ## In Progress
 
-- Nothing currently coded. **Phase 5 (Academic & Teaching Administration) is at the proposal stage**: architecture impact report, database design (13 new tables/pivots), and implementation plan (12 sequential steps) have been produced and documented. Waiting on explicit approval of that architecture before any migration is written.
-- One open product decision needed before implementation: should Curriculum/CP/TP be admin-managed only, or teacher-editable? Proposal defaults to admin-managed; needs confirmation.
-- One existing-file change flagged for approval: adding the `Auditable` trait to `ClassSubject` (currently untouched by Phase 5's design otherwise).
+- **Phase 5 Step 0 is complete** (effective-dated teaching assignments — see CHANGELOG 2026-08-10). Nothing else is in progress; Step 1 onward awaits approval.
 
 ## Next (pending user instruction)
 
-- Approve, adjust, or reject the Phase 5 architecture proposal.
+- Phase 5 Step 1: academic-period migration (`academic_periods` table; `assessments.term` → `academic_period_id`, old column deprecated then dropped in a later cleanup).
+- Phase 5 Steps 2–11: Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
+- The "successor teacher can read predecessor planning" test is deliberately deferred to the ATP step, since no Phase 5 planning entity exists yet to test against.
 - Scope and build Excel import/export (Students first) — waiting on admin staff to confirm what data/columns their existing spreadsheets contain.
 - Communication module (now V7, renumbered to make room for Phase 5) — not started, no detailed scope yet.
 
@@ -47,18 +47,20 @@
 - **Policy-layer scoping, not just UI-hiding**, for teacher access (own classes/subjects only) — verified via direct-URL-access tests, not just "the button isn't shown."
 - **`term` on `assessments` is a free-text string**, not a foreign key to a Terms table — a deliberate "don't build a table before it's needed" call per the PRD's working principles. Documented above as a known simplification.
 - **Datalist over a JS combobox library** for the Staff position "type or pick" field — native HTML, zero new dependency.
+- **Teaching assignments are effective-dated, never mutated.** Reassigning a subject closes the outgoing `class_subject` row and opens a new one, so anything referencing it (assessments today, Phase 5 planning records later) keeps identifying the teacher actually in force. Enforced by a partial unique index over active rows only, which works identically on PostgreSQL and SQLite.
+- **Read/write split on historical assignments:** teachers keep read access to their own past work but cannot write to a closed assignment; admins retain write access for corrections.
 
 ## Database Status
 
 - PostgreSQL 17, local dev instance (`rahai_sms` database).
-- 27 migrations, all applied cleanly; run in phase order (Foundation → Attendance → Finance → Academics → spatie permission tables).
+- 28 migrations, all applied cleanly; run in phase order (Foundation → Attendance → Finance → Academics → spatie permission tables → Phase 5 Step 0 effective dating).
 - Soft-deletes on: `students`, `guardians`, `staff`.
-- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`.
+- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`.
 
 ## Testing Status
 
-- **27/27 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
-- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), plus 1 baseline routing test.
+- **39/39 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
+- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (12), plus 1 baseline routing test.
 - Tests focus on business rules and authorization scoping (e.g. "a teacher cannot record attendance for a class they don't teach," "an invoice's items lock once a payment exists") rather than exhaustive UI coverage.
 - Every module has also been manually verified end-to-end in-browser (desktop + mobile viewports, across at least two roles) before being marked complete.
 

@@ -8,6 +8,7 @@ use App\Models\SchoolClass;
 use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Subject;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -105,10 +106,31 @@ class Show extends Component
             'subject_teacher_id' => ['required', 'exists:staff,id'],
         ]);
 
-        ClassSubject::updateOrCreate(
-            ['class_id' => $this->schoolClass->id, 'subject_id' => $validated['subject_id']],
-            ['staff_id' => $validated['subject_teacher_id']]
-        );
+        $current = ClassSubject::where('class_id', $this->schoolClass->id)
+            ->where('subject_id', $validated['subject_id'])
+            ->active()
+            ->first();
+
+        // Re-selecting the teacher already in place is a no-op, not a handover.
+        if ($current && $current->staff_id === (int) $validated['subject_teacher_id']) {
+            $this->reset(['subject_id', 'subject_teacher_id', 'showAssignSubject']);
+
+            return;
+        }
+
+        // Close-and-create, never mutate: whatever already points at $current
+        // (assessments today, planning records later) must keep resolving to
+        // the teacher who actually held the assignment at the time.
+        DB::transaction(function () use ($validated, $current) {
+            $current?->update(['ended_on' => today()]);
+
+            ClassSubject::create([
+                'class_id' => $this->schoolClass->id,
+                'subject_id' => $validated['subject_id'],
+                'staff_id' => $validated['subject_teacher_id'],
+                'started_on' => today(),
+            ]);
+        });
 
         $this->reset(['subject_id', 'subject_teacher_id', 'showAssignSubject']);
         $this->schoolClass->refresh();
@@ -118,12 +140,21 @@ class Show extends Component
     {
         $this->authorize('manageAcademics', $this->schoolClass);
 
-        $classSubject = ClassSubject::where('id', $classSubjectId)->where('class_id', $this->schoolClass->id)->first();
+        $classSubject = ClassSubject::where('id', $classSubjectId)
+            ->where('class_id', $this->schoolClass->id)
+            ->active()
+            ->first();
 
-        // Guard proactively rather than letting the FK's restrictOnDelete
-        // surface as a raw query exception -- a subject with assessments
-        // already recorded can't be unassigned without losing that history.
-        if ($classSubject && $classSubject->assessments()->doesntExist()) {
+        if (! $classSubject) {
+            return;
+        }
+
+        // With history attached, closing preserves attribution; the FK's
+        // restrictOnDelete would block a hard delete anyway. Without history
+        // there is nothing to preserve, so remove the row outright.
+        if ($classSubject->assessments()->exists()) {
+            $classSubject->update(['ended_on' => today()]);
+        } else {
             $classSubject->delete();
         }
 
@@ -138,7 +169,14 @@ class Show extends Component
             'availableSubjects' => Subject::where(function ($q) {
                 $q->whereNull('grade_id')->orWhere('grade_id', $this->schoolClass->grade_id);
             })->orderBy('name')->get(),
-            'classSubjects' => $this->schoolClass->classSubjects()->with('subject', 'teacher')->withCount('assessments')->get(),
+            // Active only -- superseded assignments stay in the database for
+            // historical attribution but are not part of the class as it
+            // stands today.
+            'classSubjects' => $this->schoolClass->classSubjects()
+                ->active()
+                ->with('subject', 'teacher')
+                ->withCount('assessments')
+                ->get(),
         ]);
     }
 }

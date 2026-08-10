@@ -4,6 +4,25 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 — Phase 5 Step 0
+
+### Fixed
+- **Teaching assignments were losing their history.** Reassigning a subject to a new teacher mutated `class_subject.staff_id` in place, which retroactively re-attributed every past assessment to the incoming teacher *and* transferred edit rights to them. Assignments are now effective-dated: a reassignment closes the outgoing row and opens a new one, so historical records keep identifying the teacher who was actually in force.
+- Report card listed a subject once per teacher after a reassignment; results are now grouped by subject and merged across assignments.
+- `removeSubject` silently did nothing when a subject had assessments attached; it now closes the assignment instead.
+
+### Changed
+- Teachers keep **read** access to work recorded under an assignment they have since handed over, but can no longer **write** to it. Admins retain write access for corrections.
+- The class screen lists active assignments only; superseded ones remain in the database for attribution.
+
+### Database
+- `class_subject` + `started_on`, `ended_on`; replaced `unique(class_id, subject_id)` with a partial unique index over active rows only, so one assignment can be current while any number are closed.
+
+### Tests
+- New `TeachingAssignmentHistoryTest` (12 tests) covering the Budi → Maria reassignment scenario end to end, including the DB-level active-assignment constraint and report-card merging. Suite: 27 → 39 passing.
+
+---
+
 ## 2026-08-10
 
 ### Added

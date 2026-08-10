@@ -46,7 +46,7 @@ class AssessmentPolicy
             return false;
         }
 
-        return $this->hasClassSubjectAccess($user, $classSubject);
+        return $this->hasClassSubjectAccess($user, $classSubject, requireActive: true);
     }
 
     /**
@@ -58,10 +58,19 @@ class AssessmentPolicy
             return false;
         }
 
-        return $this->hasClassSubjectAccess($user, $assessment->classSubject);
+        return $this->hasClassSubjectAccess($user, $assessment->classSubject, requireActive: true);
     }
 
-    private function hasClassSubjectAccess(User $user, ClassSubject $classSubject): bool
+    /**
+     * Teachers are scoped to their own assignment; everyone else holding the
+     * permission (admin, principal) is not.
+     *
+     * `$requireActive` is the read/write split introduced with effective-dated
+     * assignments: a teacher keeps READ access to work recorded under an
+     * assignment that has since been handed over, but can no longer WRITE to
+     * it. Admins retain write access for corrections.
+     */
+    private function hasClassSubjectAccess(User $user, ClassSubject $classSubject, bool $requireActive = false): bool
     {
         if (! $user->hasRole('teacher')) {
             return true;
@@ -69,6 +78,10 @@ class AssessmentPolicy
 
         $staffId = $user->staff?->id;
 
-        return $staffId && $classSubject->staff_id === $staffId;
+        if (! $staffId || $classSubject->staff_id !== $staffId) {
+            return false;
+        }
+
+        return $requireActive ? $classSubject->isActive() : true;
     }
 }

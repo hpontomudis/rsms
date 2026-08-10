@@ -72,6 +72,7 @@ Features:
 - Teacher assignment (homeroom / assistant / subject_teacher roles per class)
 - Student roster (enroll/unenroll with date)
 - Subject assignment (see Academics module — `class_subject`)
+- **Effective-dated teaching assignments** *(Phase 5 Step 0)*: reassigning a subject to a different teacher closes the outgoing assignment (`ended_on`) and opens a new one rather than overwriting it, so past assessments keep identifying the teacher who actually recorded them. A partial unique index permits exactly one active assignment per class+subject alongside any number of closed ones. The class screen lists active assignments only.
 
 ---
 
@@ -121,7 +122,8 @@ Features:
 - Class-Subject assignment: a subject taught in a specific class by a specific staff member (`class_subject`, unique per class+subject)
 - Assessments: name, `term` (free-text, e.g. "Term 1" — not a separate Terms table), max score, date, scoped to a class-subject
 - Score recording: roster with numeric score inputs per student, validated against the assessment's max score
-- A teacher can only create assessments / record scores for class-subjects they are assigned to (object-level policy check)
+- A teacher can only create assessments / record scores for class-subjects they are assigned to (object-level policy check), and only while that assignment is **active** — after a handover they keep read access to their past work but can no longer edit it; admins retain write access for corrections *(Phase 5 Step 0)*
+- Report card groups by subject and merges results across a subject's successive teacher assignments, so a mid-year handover doesn't split it into two rows *(Phase 5 Step 0)*
 - A class-subject with existing assessments cannot be deleted (`restrictOnDelete` at the DB level, not just app-level)
 - Report Card: per student, per academic year, grouped by subject, averaged by term (hardcoded terms: Term 1/2/3) with an overall average
 - Assessments list/create/show screens; Subjects list/create/edit screens
@@ -132,7 +134,7 @@ Known simplification: `term` is a free-text string on `assessments`, and the rep
 
 ## V5 — Academic & Teaching Administration
 
-Status: **Proposed** — full architecture report and database design produced and reviewed; **no migrations, models, or UI exist yet**. Do not treat anything below as built.
+Status: **Step 0 complete; entities not started.** The architecture is approved and Step 0 (effective-dated teaching assignments — a prerequisite bug fix, documented under V1 Classes and V4 Academics above) is implemented, tested, and verified. **None of the Phase 5 entities below exist yet.**
 
 Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data, anchored to the existing `class_subject` "teaching assignment" record so teacher/subject/class/grade/academic-year never need re-entering.
 
