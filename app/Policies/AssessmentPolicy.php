@@ -46,11 +46,18 @@ class AssessmentPolicy
             return false;
         }
 
-        return $this->hasClassSubjectAccess($user, $classSubject, requireActive: true);
+        // A closed assignment is history: no NEW academic activity may be
+        // recorded against it by anyone, admins included. Backfilling a
+        // missed assessment would need its own explicit, audited workflow.
+        if (! $classSubject->isActive()) {
+            return false;
+        }
+
+        return $this->hasClassSubjectAccess($user, $classSubject);
     }
 
     /**
-     * Whether scores may be entered/edited for this assessment.
+     * Whether scores may be entered/edited on an assessment that already exists.
      */
     public function recordScores(User $user, Assessment $assessment): bool
     {
@@ -58,19 +65,29 @@ class AssessmentPolicy
             return false;
         }
 
-        return $this->hasClassSubjectAccess($user, $assessment->classSubject, requireActive: true);
+        $classSubject = $assessment->classSubject;
+
+        if (! $this->hasClassSubjectAccess($user, $classSubject)) {
+            return false;
+        }
+
+        // Teachers are frozen out once their assignment is handed over;
+        // admins/principals may still correct existing historical records.
+        if ($user->hasRole('teacher') && ! $classSubject->isActive()) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
      * Teachers are scoped to their own assignment; everyone else holding the
-     * permission (admin, principal) is not.
+     * relevant permission (admin, principal) is not.
      *
-     * `$requireActive` is the read/write split introduced with effective-dated
-     * assignments: a teacher keeps READ access to work recorded under an
-     * assignment that has since been handed over, but can no longer WRITE to
-     * it. Admins retain write access for corrections.
+     * Deliberately says nothing about active vs. closed -- that rule differs
+     * per action and is applied by the callers above.
      */
-    private function hasClassSubjectAccess(User $user, ClassSubject $classSubject, bool $requireActive = false): bool
+    private function hasClassSubjectAccess(User $user, ClassSubject $classSubject): bool
     {
         if (! $user->hasRole('teacher')) {
             return true;
@@ -78,10 +95,6 @@ class AssessmentPolicy
 
         $staffId = $user->staff?->id;
 
-        if (! $staffId || $classSubject->staff_id !== $staffId) {
-            return false;
-        }
-
-        return $requireActive ? $classSubject->isActive() : true;
+        return $staffId && $classSubject->staff_id === $staffId;
     }
 }

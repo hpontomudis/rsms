@@ -120,21 +120,21 @@ Status: Complete
 Features:
 - Subjects (name, optional grade restriction)
 - Class-Subject assignment: a subject taught in a specific class by a specific staff member (`class_subject`, unique per class+subject)
-- Assessments: name, `term` (free-text, e.g. "Term 1" — not a separate Terms table), max score, date, scoped to a class-subject
+- Assessments: name, **academic period** (FK to `academic_periods`), max score, date, scoped to a class-subject
 - Score recording: roster with numeric score inputs per student, validated against the assessment's max score
 - A teacher can only create assessments / record scores for class-subjects they are assigned to (object-level policy check), and only while that assignment is **active** — after a handover they keep read access to their past work but can no longer edit it; admins retain write access for corrections *(Phase 5 Step 0)*
 - Report card groups by subject and merges results across a subject's successive teacher assignments, so a mid-year handover doesn't split it into two rows *(Phase 5 Step 0)*
 - A class-subject with existing assessments cannot be deleted (`restrictOnDelete` at the DB level, not just app-level)
-- Report Card: per student, per academic year, grouped by subject, averaged by term (hardcoded terms: Term 1/2/3) with an overall average
+- Report Card: per student, per academic year, grouped by subject, averaged per **academic period** (columns generated from `academic_periods.sequence`) with an overall average
 - Assessments list/create/show screens; Subjects list/create/edit screens
 
-Known simplification: `term` is a free-text string on `assessments`, and the report card hardcodes `['Term 1', 'Term 2', 'Term 3']` rather than reading from a database-driven term list. This was a deliberate "avoid unnecessary complexity" call per the PRD (no separate Terms table), but it means a school using different term names would need a code change, not a data change.
+**Academic Periods** *(Phase 5 Step 1)*: `academic_periods` is the canonical reporting period within an academic year — seeded as Semester 1 / Semester 2 for Rahai, unique per year on both name and sequence, RESTRICT-protected against deletion while assessments reference it. Neither the count nor the names appear in application logic, so a year that later needs three periods is a data change only. The old free-text `assessments.term` column is deprecated: unreferenced by any code path, excluded from `$fillable`, and scheduled for removal in a later cleanup migration.
 
 ---
 
 ## V5 — Academic & Teaching Administration
 
-Status: **Step 0 complete; entities not started.** The architecture is approved and Step 0 (effective-dated teaching assignments — a prerequisite bug fix, documented under V1 Classes and V4 Academics above) is implemented, tested, and verified. **None of the Phase 5 entities below exist yet.**
+Status: **Steps 0 and 1 complete; entities not started.** The architecture is approved. Step 0 (effective-dated teaching assignments) and Step 1 (academic-period canonicalisation) are implemented, tested, and verified — both are documented under V1 Classes / V4 Academics above, since they modified existing modules. **None of the Phase 5 entities below exist yet.**
 
 Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data, anchored to the existing `class_subject` "teaching assignment" record so teacher/subject/class/grade/academic-year never need re-entering.
 

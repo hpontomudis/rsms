@@ -4,7 +4,32 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
-## 2026-08-10 — Phase 5 Step 0
+## 2026-08-10 - Phase 5 Step 1
+
+### Added
+- `academic_periods` - the canonical reporting period within an academic year, seeded as **Semester 1 / Semester 2** for Rahai. The number and names of periods are data: a year needing three periods requires no code change.
+- Academic-period validation on assessment creation: a period belonging to a different academic year is rejected.
+
+### Changed
+- Assessment create replaces the hardcoded Term 1/2/3 dropdown with periods loaded from the selected teaching assignment's academic year.
+- ReportCard columns are now generated from `academic_periods.sequence` instead of a hardcoded term array.
+
+### Deprecated
+- `assessments.term`. `academic_period_id` is the single canonical source. `term` is removed from `$fillable`, read by nothing, and made nullable so new rows leave it empty; it remains physically present for rollback safety and will be dropped in a later cleanup migration.
+
+### Database
+- `academic_periods` (unique per year on both `name` and `sequence`; `academic_year_id` RESTRICT).
+- `assessments.academic_period_id` - added nullable, backfilled by **exact name match only**, gated by a validation migration that refuses to proceed while any row is unmapped, then set NOT NULL. No automatic Term-to-Semester rule was encoded; the single known Phase 4 demo row was mapped by hand.
+
+### Fixed
+- Closed teaching assignments now reject **new** assessments for every role, admins included. Admins may still correct assessments that already exist. (Closed assignment = no new academic activity.)
+
+### Tests
+- New `AcademicPeriodTest` (12 tests). Suite: 39 to 52 passing.
+
+---
+
+## 2026-08-10 - Phase 5 Step 0
 
 ### Fixed
 - **Teaching assignments were losing their history.** Reassigning a subject to a new teacher mutated `class_subject.staff_id` in place, which retroactively re-attributed every past assessment to the incoming teacher *and* transferred edit rights to them. Assignments are now effective-dated: a reassignment closes the outgoing row and opens a new one, so historical records keep identifying the teacher who was actually in force.

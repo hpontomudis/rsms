@@ -226,7 +226,7 @@
                         <div>
                             <span class="text-slate-900">{{ $result->assessment->name }}</span>
                             <span class="ml-1 text-slate-500">
-                                ({{ $result->assessment->classSubject->subject->name }} &middot; {{ $result->assessment->term }})
+                                ({{ $result->assessment->classSubject->subject->name }} &middot; {{ $result->assessment->academicPeriod->name }})
                             </span>
                         </div>
                         <span class="font-medium text-slate-900">{{ (float) $result->score }} / {{ (int) $result->assessment->max_score }}</span>

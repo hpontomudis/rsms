@@ -28,8 +28,8 @@
                 <thead class="bg-slate-50">
                     <tr>
                         <th class="px-4 py-3 text-left font-medium text-slate-500">Subject</th>
-                        @foreach ($terms as $term)
-                            <th class="px-4 py-3 text-center font-medium text-slate-500">{{ $term }}</th>
+                        @foreach ($periods as $period)
+                            <th class="px-4 py-3 text-center font-medium text-slate-500">{{ $period->name }}</th>
                         @endforeach
                         <th class="px-4 py-3 text-center font-medium text-slate-500">Overall</th>
                     </tr>
@@ -38,9 +38,9 @@
                     @foreach ($rows as $row)
                         <tr class="hover:bg-slate-50">
                             <td class="px-4 py-3 font-medium text-slate-900">{{ $row->subject->name }}</td>
-                            @foreach ($terms as $term)
+                            @foreach ($periods as $period)
                                 <td class="px-4 py-3 text-center text-slate-600">
-                                    {{ $row->termAverages[$term] !== null ? $row->termAverages[$term].'%' : '—' }}
+                                    {{ $row->periodAverages[$period->id] !== null ? $row->periodAverages[$period->id].'%' : '—' }}
                                 </td>
                             @endforeach
                             <td class="px-4 py-3 text-center font-semibold text-slate-900">

@@ -38,7 +38,7 @@ class AcademicsTest extends TestCase
         [$teacherUser, $staff, $classSubject] = $this->makeClassSubject();
 
         $assessment = $classSubject->assessments()->create([
-            'name' => 'Midterm', 'term' => 'Term 1', 'max_score' => 100, 'assessment_date' => now(),
+            'name' => 'Midterm', 'academic_period_id' => $this->periodFor($classSubject)->id, 'max_score' => 100, 'assessment_date' => now(),
         ]);
 
         $otherTeacherUser = User::factory()->create();
@@ -68,7 +68,7 @@ class AcademicsTest extends TestCase
         [, , $classSubject] = $this->makeClassSubject();
 
         $classSubject->assessments()->create([
-            'name' => 'Midterm', 'term' => 'Term 1', 'max_score' => 100, 'assessment_date' => now(),
+            'name' => 'Midterm', 'academic_period_id' => $this->periodFor($classSubject)->id, 'max_score' => 100, 'assessment_date' => now(),
         ]);
 
         $this->expectException(\Illuminate\Database\QueryException::class);
@@ -85,8 +85,8 @@ class AcademicsTest extends TestCase
         ]);
         $classSubject->schoolClass->students()->attach($student->id, ['enrolled_at' => '2026-07-01', 'status' => 'active']);
 
-        $a1 = $classSubject->assessments()->create(['name' => 'Quiz 1', 'term' => 'Term 1', 'max_score' => 50, 'assessment_date' => now()]);
-        $a2 = $classSubject->assessments()->create(['name' => 'Quiz 2', 'term' => 'Term 1', 'max_score' => 100, 'assessment_date' => now()]);
+        $a1 = $classSubject->assessments()->create(['name' => 'Quiz 1', 'academic_period_id' => $this->periodFor($classSubject)->id, 'max_score' => 50, 'assessment_date' => now()]);
+        $a2 = $classSubject->assessments()->create(['name' => 'Quiz 2', 'academic_period_id' => $this->periodFor($classSubject)->id, 'max_score' => 100, 'assessment_date' => now()]);
 
         $a1->results()->create(['student_id' => $student->id, 'score' => 40]); // 80%
         $a2->results()->create(['student_id' => $student->id, 'score' => 90]); // 90%
@@ -121,6 +121,16 @@ class AcademicsTest extends TestCase
         $subject = Subject::create(['name' => 'Mathematics', 'grade_id' => $grade->id]);
         $classSubject = ClassSubject::create(['class_id' => $class->id, 'subject_id' => $subject->id, 'staff_id' => $staff->id]);
 
+        $this->seed(\Database\Seeders\AcademicPeriodSeeder::class);
+
         return [$teacherUser, $staff, $classSubject];
+    }
+
+    /**
+     * First configured period of the assignment's academic year.
+     */
+    private function periodFor(ClassSubject $classSubject): \App\Models\AcademicPeriod
+    {
+        return $classSubject->schoolClass->academicYear->periods->first();
     }
 }

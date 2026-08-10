@@ -7,7 +7,7 @@
         <h1 class="font-serif text-xl font-bold text-brand-navy">{{ $assessment->name }}</h1>
         <p class="text-sm text-slate-500">
             {{ $assessment->classSubject->schoolClass->name }} &middot; {{ $assessment->classSubject->subject->name }}
-            &middot; {{ $assessment->term }} &middot; {{ $assessment->assessment_date->format('d M Y') }}
+            &middot; {{ $assessment->academicPeriod->name }} &middot; {{ $assessment->assessment_date->format('d M Y') }}
         </p>
         <p class="mt-1 text-xs text-slate-400">Max score: {{ (int) $assessment->max_score }}</p>
     </div>

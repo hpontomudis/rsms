@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             GradeSeeder::class,
             PositionSeeder::class,
             AcademicYearSeeder::class,
+            // Must follow AcademicYearSeeder -- periods hang off a year.
+            AcademicPeriodSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

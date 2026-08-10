@@ -4,6 +4,7 @@ namespace App\Livewire\Assessments;
 
 use App\Models\Assessment;
 use App\Models\ClassSubject;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -18,7 +19,7 @@ class Create extends Component
 
     public string $name = '';
 
-    public string $term = 'Term 1';
+    public string $academic_period_id = '';
 
     public string $max_score = '100';
 
@@ -29,6 +30,8 @@ class Create extends Component
         $this->classSubject = ClassSubject::with('subject', 'schoolClass')->findOrFail($this->class_subject_id);
         $this->authorize('createFor', [Assessment::class, $this->classSubject]);
         $this->assessment_date = now()->toDateString();
+
+        $this->academic_period_id = (string) ($this->periods()->first()?->id ?? '');
     }
 
     public function save()
@@ -37,7 +40,13 @@ class Create extends Component
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:100'],
-            'term' => ['required', 'string', 'max:50'],
+            'academic_period_id' => [
+                'required',
+                // Scoped to this assignment's own academic year: an assessment
+                // must never reference a period from a different year.
+                Rule::exists('academic_periods', 'id')
+                    ->where('academic_year_id', $this->classSubject->schoolClass->academic_year_id),
+            ],
             'max_score' => ['required', 'numeric', 'min:1', 'max:1000'],
             'assessment_date' => ['required', 'date'],
         ]);
@@ -47,8 +56,17 @@ class Create extends Component
         return $this->redirect(route('assessments.show', $assessment), navigate: true);
     }
 
+    /**
+     * Periods belonging to this teaching assignment's academic year, in
+     * configured order. Never a hardcoded list.
+     */
+    public function periods()
+    {
+        return $this->classSubject->schoolClass->academicYear->periods;
+    }
+
     public function render()
     {
-        return view('livewire.assessments.create');
+        return view('livewire.assessments.create', ['periods' => $this->periods()]);
     }
 }

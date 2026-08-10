@@ -20,7 +20,7 @@
                 <li class="flex items-center justify-between py-2">
                     <a href="{{ route('assessments.show', $assessment) }}" class="hover:underline">
                         <span class="font-medium text-slate-900">{{ $assessment->name }}</span>
-                        <span class="ml-1 text-slate-500">({{ $assessment->term }})</span>
+                        <span class="ml-1 text-slate-500">({{ $assessment->academicPeriod->name }})</span>
                     </a>
                     <span class="text-slate-500">{{ $assessment->results_count }} scored &middot; max {{ (int) $assessment->max_score }}</span>
                 </li>

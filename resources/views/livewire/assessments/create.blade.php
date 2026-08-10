@@ -11,13 +11,15 @@
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700">Term</label>
-                <select wire:model="term" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
-                    <option value="Term 1">Term 1</option>
-                    <option value="Term 2">Term 2</option>
-                    <option value="Term 3">Term 3</option>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Academic Period</label>
+                <select wire:model="academic_period_id" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                    @forelse ($periods as $period)
+                        <option value="{{ $period->id }}">{{ $period->name }}</option>
+                    @empty
+                        <option value="">No periods defined for {{ $classSubject->schoolClass->academicYear->name }}</option>
+                    @endforelse
                 </select>
-                @error('term') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                @error('academic_period_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>

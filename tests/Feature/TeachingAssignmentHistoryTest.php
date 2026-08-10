@@ -122,6 +122,25 @@ class TeachingAssignmentHistoryTest extends TestCase
         $this->assertTrue($c['adminUser']->can('view', $assessment->fresh()));
     }
 
+    public function test_nobody_may_create_a_new_assessment_on_a_closed_assignment(): void
+    {
+        $c = $this->makeContext();
+        $this->reassignTo($c, $c['maria']);
+
+        $closed = ClassSubject::find($c['budiAssignment']->id);
+
+        // Closed assignment = no new academic activity, for any role. Admins
+        // may correct what exists (asserted above) but not add to history.
+        $this->assertFalse($c['adminUser']->can('createFor', [Assessment::class, $closed]));
+        $this->assertFalse($c['budiUser']->can('createFor', [Assessment::class, $closed]));
+        $this->assertFalse($c['mariaUser']->can('createFor', [Assessment::class, $closed]));
+
+        // ...but the successor's own active assignment is unaffected.
+        $active = ClassSubject::where('class_id', $c['class']->id)->active()->first();
+        $this->assertTrue($c['mariaUser']->can('createFor', [Assessment::class, $active]));
+        $this->assertTrue($c['adminUser']->can('createFor', [Assessment::class, $active]));
+    }
+
     public function test_database_permits_only_one_active_assignment_per_class_and_subject(): void
     {
         $c = $this->makeContext();
@@ -176,7 +195,8 @@ class TeachingAssignmentHistoryTest extends TestCase
         $maths = $rows->filter(fn ($r) => $r->subject->name === 'Mathematics');
 
         $this->assertCount(1, $maths, 'Mathematics must appear once, not once per teacher');
-        $this->assertEquals(90, $maths->first()->termAverages['Term 1'], 'results merged across both assignments');
+        $period = $c['class']->academicYear->periods->first();
+        $this->assertEquals(90, $maths->first()->periodAverages[$period->id], 'results merged across both assignments');
     }
 
     public function test_class_subject_changes_are_audit_logged(): void
@@ -258,6 +278,8 @@ class TeachingAssignmentHistoryTest extends TestCase
         ]);
         $class->students()->attach($student->id, ['enrolled_at' => '2026-07-01', 'status' => 'active']);
 
+        $this->seed(\Database\Seeders\AcademicPeriodSeeder::class);
+
         $budiAssignment = ClassSubject::create([
             'class_id' => $class->id,
             'subject_id' => $subject->id,
@@ -306,7 +328,7 @@ class TeachingAssignmentHistoryTest extends TestCase
     {
         return $classSubject->assessments()->create([
             'name' => $name,
-            'term' => 'Term 1',
+            'academic_period_id' => $classSubject->schoolClass->academicYear->periods->first()->id,
             'max_score' => 100,
             'assessment_date' => now()->toDateString(),
         ]);
