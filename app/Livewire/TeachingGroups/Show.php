@@ -50,6 +50,15 @@ class Show extends Component
         return $today->between($year->start_date, $year->end_date) ? $today : $year->start_date->copy();
     }
 
+    private function parsedStartDate(): Carbon
+    {
+        try {
+            return Carbon::parse($this->started_on);
+        } catch (\Throwable) {
+            return $this->defaultDate();
+        }
+    }
+
     public function addStudent(TeachingGroupMembershipService $memberships): void
     {
         $this->authorize('update', $this->teachingGroup);
@@ -109,8 +118,10 @@ class Show extends Component
                 ->sortBy(fn ($m) => $m->student->fullName())->values(),
             'pastMembers' => $this->teachingGroup->memberships()->closed()
                 ->with('student')->orderByDesc('ended_on')->get(),
+            // Filtered against the date actually in the form, so a backdated
+            // start narrows the list the same way the service would reject it.
             'eligibleStudents' => $this->showAddStudent
-                ? $memberships->eligibleStudents($this->teachingGroup)
+                ? $memberships->eligibleStudents($this->teachingGroup, $this->parsedStartDate())
                 : collect(),
         ]);
     }

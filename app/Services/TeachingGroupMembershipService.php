@@ -40,8 +40,7 @@ class TeachingGroupMembershipService
         return DB::transaction(function () use ($group, $student, $startedOn, $notes) {
             Student::whereKey($student->id)->lockForUpdate()->first();
 
-            $this->assertNoOpenMembership($group, $student);
-            $this->assertNoCompetingEnglishGroup($group, $student);
+            $this->assertNoOverlappingMembership($group, $student, $startedOn, null);
 
             return TeachingGroupStudent::create([
                 'teaching_group_id' => $group->id,
@@ -77,11 +76,13 @@ class TeachingGroupMembershipService
      * it. Used to narrow the picker -- never as the only check, since the UI
      * is not a security or integrity boundary.
      */
-    public function eligibleStudents(TeachingGroup $group): \Illuminate\Support\Collection
+    public function eligibleStudents(TeachingGroup $group, ?Carbon $from = null): \Illuminate\Support\Collection
     {
-        // Students already committed to a group in this programme, resolved in
-        // one query rather than per-student. Covers "already in this group" too.
-        $spokenFor = $this->studentsWithOpenMembershipInProgramme($group) ?? $group->activeMemberships()->pluck('student_id');
+        $from ??= Carbon::today();
+
+        // Students whose existing membership would overlap a new open-ended
+        // one starting on $from, resolved in one query rather than per student.
+        $spokenFor = $this->studentsWithMembershipCovering($group, $from);
 
         return Student::whereNotIn('id', $spokenFor->all())
             ->where('status', 'active')
@@ -92,20 +93,27 @@ class TeachingGroupMembershipService
     }
 
     /**
-     * Null for a generic group, which has no programme and so no exclusivity.
+     * Students with a membership still in force on or after $from -- in this
+     * group (always) or anywhere in its programme (English groups only).
      */
-    private function studentsWithOpenMembershipInProgramme(TeachingGroup $group): ?\Illuminate\Support\Collection
+    private function studentsWithMembershipCovering(TeachingGroup $group, Carbon $from): \Illuminate\Support\Collection
     {
+        $stillRunning = fn ($q) => $q->whereNull('ended_on')->orWhere('ended_on', '>=', $from);
+
         $programme = $group->englishProgramme();
 
-        if (! $programme) {
-            return null;
+        $query = TeachingGroupStudent::query()->where($stillRunning);
+
+        if ($programme) {
+            $query->where(function ($q) use ($group, $programme) {
+                $q->where('teaching_group_id', $group->id)
+                    ->orWhereHas('teachingGroup.englishLevel', fn ($l) => $l->where('english_programme_id', $programme->id));
+            });
+        } else {
+            $query->where('teaching_group_id', $group->id);
         }
 
-        return TeachingGroupStudent::query()
-            ->whereNull('ended_on')
-            ->whereHas('teachingGroup.englishLevel', fn ($q) => $q->where('english_programme_id', $programme->id))
-            ->pluck('student_id');
+        return $query->pluck('student_id');
     }
 
     /**
@@ -134,6 +142,9 @@ class TeachingGroupMembershipService
                 : "{$student->fullName()} has no active class in this group's academic year, so their grade cannot be determined.";
         }
 
+        // Group membership resolves its year from the group, never from a
+        // date, so the year-resolution reasons cannot arise here.
+
         $studentProgramme = $grade->englishProgramme();
 
         if (! $studentProgramme || $studentProgramme->id !== $programme->id) {
@@ -150,43 +161,82 @@ class TeachingGroupMembershipService
         }
     }
 
-    private function assertNoOpenMembership(TeachingGroup $group, Student $student): void
-    {
-        $exists = TeachingGroupStudent::where('teaching_group_id', $group->id)
-            ->where('student_id', $student->id)
-            ->whereNull('ended_on')
-            ->exists();
-
-        if ($exists) {
-            $this->fail('student_id', "{$student->fullName()} is already an active member of this group.");
-        }
-    }
-
     /**
-     * A student attends one English proficiency group per programme at a time.
-     * Generic groups are unconstrained and may overlap freely with anything.
+     * Two rules, both expressed as effective-date overlap rather than "is
+     * there an open row", so historical corrections cannot quietly produce a
+     * student who was in two places at once:
+     *
+     *   a) within one group, a student's membership periods must not overlap
+     *      -- true of generic groups as much as English ones;
+     *   b) within one English programme, membership periods across different
+     *      groups must not overlap.
+     *
+     * Rule (b) does not apply to generic groups, which may overlap anything.
+     * Neither can be a database constraint: (a) would need an exclusion
+     * constraint over a date range (PostgreSQL-only; SQLite runs the tests),
+     * and (b) additionally spans a join through english_levels that an index
+     * cannot see without copying english_programme_id onto every membership
+     * row -- which is exactly the denormalisation this design rejects.
      */
-    private function assertNoCompetingEnglishGroup(TeachingGroup $group, Student $student): void
+    private function assertNoOverlappingMembership(TeachingGroup $group, Student $student, Carbon $startedOn, ?Carbon $endedOn, ?int $ignoreId = null): void
     {
+        $sameGroup = $this->overlappingMembership(
+            TeachingGroupStudent::where('teaching_group_id', $group->id),
+            $student, $startedOn, $endedOn, $ignoreId
+        );
+
+        if ($sameGroup) {
+            $this->fail('student_id', $sameGroup->isOpen()
+                ? "{$student->fullName()} is already an active member of this group."
+                : "{$student->fullName()} was already in this group from {$sameGroup->started_on->toDateString()} to {$sameGroup->ended_on->toDateString()}. Membership periods in one group cannot overlap.");
+        }
+
         $programme = $group->englishProgramme();
 
         if (! $programme) {
             return;
         }
 
-        $competing = TeachingGroupStudent::query()
-            ->where('student_id', $student->id)
-            ->whereNull('ended_on')
-            ->whereHas('teachingGroup.englishLevel', fn ($q) => $q->where('english_programme_id', $programme->id))
-            ->with('teachingGroup')
-            ->first();
+        $sameProgramme = $this->overlappingMembership(
+            TeachingGroupStudent::whereHas('teachingGroup.englishLevel', fn ($q) => $q->where('english_programme_id', $programme->id)),
+            $student, $startedOn, $endedOn, $ignoreId
+        );
 
-        if ($competing) {
-            $this->fail(
-                'student_id',
-                "{$student->fullName()} is already in {$competing->teachingGroup->name} for the {$programme->name}. End that membership first."
-            );
+        if ($sameProgramme) {
+            $name = $sameProgramme->teachingGroup->name;
+
+            $this->fail('student_id', $sameProgramme->isOpen()
+                ? "{$student->fullName()} is already in {$name} for the {$programme->name}. End that membership first."
+                : "{$student->fullName()} was in {$name} for the {$programme->name} from {$sameProgramme->started_on->toDateString()} to {$sameProgramme->ended_on->toDateString()}. Memberships within one programme cannot overlap.");
         }
+    }
+
+    /**
+     * The overlap predicate itself, against whatever set the caller scopes to.
+     * Public so the rule can be tested directly, including closed-versus-closed
+     * cases that no UI path can produce.
+     */
+    public function overlappingMembership(
+        \Illuminate\Database\Eloquent\Builder $scope,
+        Student $student,
+        Carbon $startedOn,
+        ?Carbon $endedOn = null,
+        ?int $ignoreId = null,
+    ): ?TeachingGroupStudent {
+        $scope->where('student_id', $student->id)
+            // existing.ended_on >= new.started_on (an open row never ends)
+            ->where(fn ($q) => $q->whereNull('ended_on')->orWhere('ended_on', '>=', $startedOn));
+
+        // existing.started_on <= new.ended_on; an open new row has no ceiling
+        if ($endedOn) {
+            $scope->where('started_on', '<=', $endedOn);
+        }
+
+        if ($ignoreId) {
+            $scope->whereKeyNot($ignoreId);
+        }
+
+        return $scope->with('teachingGroup')->first();
     }
 
     /**

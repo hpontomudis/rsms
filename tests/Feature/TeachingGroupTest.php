@@ -16,6 +16,7 @@ use App\Models\TeachingGroup;
 use App\Models\TeachingGroupStudent;
 use App\Models\User;
 use App\Services\EnglishPlacementService;
+use App\Services\StudentGradeResolver;
 use App\Services\TeachingGroupMembershipService;
 use Database\Seeders\EnglishProgrammeSeeder;
 use Database\Seeders\GradeSeeder;
@@ -460,6 +461,292 @@ class TeachingGroupTest extends TestCase
 
         $this->assertEquals($before, $after, 'a re-assessment must not silently rewrite group membership');
         $this->assertSame($green->id, TeachingGroupStudent::where('student_id', $student->id)->whereNull('ended_on')->first()->teaching_group_id);
+    }
+
+    // ------------------------------------------- academic-year resolution (refinement 1)
+
+    public function test_a_placement_resolves_to_the_academic_year_containing_its_start_date(): void
+    {
+        $this->seedReferenceData();
+
+        $resolved = app(StudentGradeResolver::class)->yearForDate($this->date('2026-09-01'), $reason);
+
+        $this->assertSame($this->year->id, $resolved->id);
+        $this->assertNull($reason);
+    }
+
+    /**
+     * No fallback to the current year: substituting today's school year for an
+     * unmatched historical date would validate against the wrong grade silently.
+     */
+    public function test_a_date_outside_every_academic_year_is_rejected_rather_than_falling_back(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        $this->assertTrue($this->year->is_current, 'precondition: a current year exists to fall back to');
+
+        $resolved = app(StudentGradeResolver::class)->yearForDate($this->date('2020-01-15'), $reason);
+
+        $this->assertNull($resolved);
+        $this->assertSame(StudentGradeResolver::NO_YEAR, $reason);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('does not fall within a configured Academic Year');
+
+        $this->placements()->place($student, $this->level('Green'), $this->date('2020-01-15'));
+    }
+
+    /**
+     * Nothing in the schema stops two academic years overlapping, so the
+     * resolver must report it rather than take first().
+     */
+    public function test_overlapping_academic_years_are_treated_as_ambiguous(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        AcademicYear::create([
+            'name' => 'Overlapping', 'start_date' => '2026-06-01', 'end_date' => '2027-08-31', 'is_current' => false,
+        ]);
+
+        $resolved = app(StudentGradeResolver::class)->yearForDate($this->date('2026-09-01'), $reason);
+
+        $this->assertNull($resolved);
+        $this->assertSame(StudentGradeResolver::AMBIGUOUS_YEAR, $reason);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('more than one configured Academic Year');
+
+        $this->placements()->place($student, $this->level('Green'), $this->date('2026-09-01'));
+    }
+
+    // ------------------------------------------- placement overlap (refinement 2)
+
+    public function test_a_closed_placement_may_not_overlap_another_closed_placement(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        StudentEnglishLevelPlacement::create([
+            'student_id' => $student->id, 'english_level_id' => $this->level('Green')->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-31',
+        ]);
+
+        // The rule itself, exercised directly: no UI path produces two closed rows.
+        $clash = $this->placements()->overlappingPlacement($student, $this->date('2026-10-01'), $this->date('2027-01-31'));
+
+        $this->assertNotNull($clash, 'Oct-Jan overlaps Jul-Dec');
+        $this->assertSame('Green', $clash->englishLevel->name);
+    }
+
+    public function test_an_open_placement_may_not_overlap_a_closed_placement(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        StudentEnglishLevelPlacement::create([
+            'student_id' => $student->id, 'english_level_id' => $this->level('Green')->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-31',
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Proficiency periods cannot overlap');
+
+        $this->placements()->place($student, $this->level('Blue'), $this->date('2026-10-01'));
+    }
+
+    public function test_adjacent_placements_are_allowed(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        StudentEnglishLevelPlacement::create([
+            'student_id' => $student->id, 'english_level_id' => $this->level('Green')->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-15',
+        ]);
+
+        $blue = $this->placements()->place($student, $this->level('Blue'), $this->date('2026-12-16'));
+
+        $this->assertTrue($blue->isOpen());
+        $this->assertSame(2, StudentEnglishLevelPlacement::where('student_id', $student->id)->count());
+    }
+
+    public function test_the_normal_green_to_blue_progression_leaves_no_gap_and_no_overlap(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        $this->placements()->place($student, $this->level('Green'), $this->date('2026-07-01'));
+        $this->placements()->place($student, $this->level('Blue'), $this->date('2026-12-16'));
+
+        $green = StudentEnglishLevelPlacement::whereNotNull('ended_on')->firstOrFail();
+        $blue = StudentEnglishLevelPlacement::whereNull('ended_on')->firstOrFail();
+
+        $this->assertSame('2026-12-15', $green->ended_on->toDateString());
+        $this->assertSame('2026-12-16', $blue->started_on->toDateString());
+    }
+
+    public function test_a_backdated_correction_cannot_create_overlapping_proficiency_periods(): void
+    {
+        $this->seedReferenceData();
+        $student = $this->studentInGrade('Year 5');
+
+        $this->placements()->place($student, $this->level('Green'), $this->date('2026-07-01'));
+        $this->placements()->place($student, $this->level('Blue'), $this->date('2026-12-16'));
+
+        // Backdated into the closed Green period.
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Proficiency periods cannot overlap');
+
+        $this->placements()->place($student, $this->level('Gold'), $this->date('2026-09-01'));
+    }
+
+    // ------------------------------------------ membership overlap (refinement 3)
+
+    public function test_memberships_of_two_groups_in_one_programme_may_not_overlap(): void
+    {
+        $this->seedReferenceData();
+        $green = $this->group('Green A', 'Green');
+        $blue = $this->group('Blue A', 'Blue');
+        $student = $this->studentInGrade('Year 5');
+
+        TeachingGroupStudent::create([
+            'teaching_group_id' => $green->id, 'student_id' => $student->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-31',
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Memberships within one programme cannot overlap');
+
+        $this->memberships()->add($blue, $student, $this->date('2026-10-01'));
+    }
+
+    public function test_adjacent_memberships_in_one_programme_are_allowed(): void
+    {
+        $this->seedReferenceData();
+        $green = $this->group('Green A', 'Green');
+        $blue = $this->group('Blue A', 'Blue');
+        $student = $this->studentInGrade('Year 5');
+
+        TeachingGroupStudent::create([
+            'teaching_group_id' => $green->id, 'student_id' => $student->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-15',
+        ]);
+
+        $membership = $this->memberships()->add($blue, $student, $this->date('2026-12-16'));
+
+        $this->assertTrue($membership->isOpen());
+    }
+
+    public function test_the_green_blue_green_sequence_is_allowed_when_the_dates_do_not_overlap(): void
+    {
+        $this->seedReferenceData();
+        $green = $this->group('Green A', 'Green');
+        $blue = $this->group('Blue A', 'Blue');
+        $student = $this->studentInGrade('Year 5');
+
+        $first = $this->memberships()->add($green, $student, $this->date('2026-07-01'));
+        $this->memberships()->end($first, $this->date('2026-10-31'));
+
+        $second = $this->memberships()->add($blue, $student, $this->date('2026-11-01'));
+        $this->memberships()->end($second, $this->date('2027-01-31'));
+
+        $third = $this->memberships()->add($green, $student, $this->date('2027-02-01'));
+
+        $this->assertTrue($third->isOpen());
+        $this->assertSame(3, TeachingGroupStudent::where('student_id', $student->id)->count());
+    }
+
+    public function test_two_historical_memberships_of_the_same_group_may_not_overlap(): void
+    {
+        $this->seedReferenceData();
+        $green = $this->group('Green A', 'Green');
+        $student = $this->studentInGrade('Year 5');
+
+        TeachingGroupStudent::create([
+            'teaching_group_id' => $green->id, 'student_id' => $student->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-31',
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Membership periods in one group cannot overlap');
+
+        $this->memberships()->add($green, $student, $this->date('2026-10-01'));
+    }
+
+    public function test_the_same_group_overlap_rule_also_covers_generic_groups(): void
+    {
+        $this->seedReferenceData();
+        $choir = $this->group('Choir');
+        $student = $this->studentInGrade('Year 5');
+
+        TeachingGroupStudent::create([
+            'teaching_group_id' => $choir->id, 'student_id' => $student->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-31',
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Membership periods in one group cannot overlap');
+
+        $this->memberships()->add($choir, $student, $this->date('2026-10-01'));
+    }
+
+    public function test_different_generic_groups_may_still_overlap_each_other_and_an_english_group(): void
+    {
+        $this->seedReferenceData();
+        $english = $this->group('Green A', 'Green');
+        $choir = $this->group('Choir');
+        $chess = $this->group('Chess Club');
+        $student = $this->studentInGrade('Year 5');
+
+        $this->memberships()->add($english, $student, $this->date('2026-07-01'));
+        $this->memberships()->add($choir, $student, $this->date('2026-07-01'));
+        $this->memberships()->add($chess, $student, $this->date('2026-07-01'));
+
+        $this->assertSame(3, TeachingGroupStudent::where('student_id', $student->id)->whereNull('ended_on')->count());
+    }
+
+    /**
+     * The programme rule must not leak across programmes or across students.
+     */
+    public function test_the_overlap_rules_do_not_affect_other_programmes_or_other_students(): void
+    {
+        $this->seedReferenceData();
+        $green = $this->group('Green A', 'Green');
+        $levelB = $this->group('Level B Group', 'Level B');
+
+        $primaryStudent = $this->studentInGrade('Year 5', 'P5');
+        $juniorStudent = $this->studentInGrade('Year 8', 'J8');
+        $otherPrimary = $this->studentInGrade('Year 5', 'P5b');
+
+        $this->memberships()->add($green, $primaryStudent, $this->date('2026-07-01'));
+
+        // Same dates, different programme -- unaffected.
+        $this->memberships()->add($levelB, $juniorStudent, $this->date('2026-07-01'));
+        // Same dates, same group, different student -- unaffected.
+        $this->memberships()->add($green, $otherPrimary, $this->date('2026-07-01'));
+
+        $this->assertSame(3, TeachingGroupStudent::whereNull('ended_on')->count());
+    }
+
+    public function test_the_picker_hides_a_student_whose_closed_membership_still_covers_the_start_date(): void
+    {
+        $this->seedReferenceData();
+        $green = $this->group('Green A', 'Green');
+        $blue = $this->group('Blue A', 'Blue');
+        $student = $this->studentInGrade('Year 5');
+
+        TeachingGroupStudent::create([
+            'teaching_group_id' => $green->id, 'student_id' => $student->id,
+            'started_on' => '2026-07-01', 'ended_on' => '2026-12-31',
+        ]);
+
+        $duringGreen = $this->memberships()->eligibleStudents($blue, $this->date('2026-10-01'))->pluck('id');
+        $afterGreen = $this->memberships()->eligibleStudents($blue, $this->date('2027-01-01'))->pluck('id');
+
+        $this->assertNotContains($student->id, $duringGreen);
+        $this->assertContains($student->id, $afterGreen);
     }
 
     // ------------------------------------------------------------------ audit

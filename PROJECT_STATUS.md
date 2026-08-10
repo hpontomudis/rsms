@@ -40,7 +40,8 @@
 
 ## Technical Debt
 
-- None flagged as urgent. The codebase has stayed close to Laravel/Livewire conventions throughout; no known shortcuts that need unwinding.
+- **`class_student` has no effective dating and no guard against a student holding two `active` rows in one academic year.** Discovered during Step 2a-ii. Nothing was changed in Phase 1; instead `StudentGradeResolver` refuses to resolve a grade when the active classes disagree, and blocks the English operation with a clear message rather than picking one. A future Foundation integrity pass should decide whether `class_student` becomes effective-dated like `class_subject` and `teaching_group_student`, or gains a partial unique index over active rows.
+- **`academic_years` permits overlapping date ranges.** Also unaddressed by design in this step; the resolver reports the ambiguity instead of choosing. Worth a constraint when Academic Years are next revisited.
 
 ## Important Architectural Decisions
 
@@ -48,8 +49,8 @@
 - **Invoice balance/status is always computed**, never stored as a mutable field (`Invoice::balance()`, `Invoice::refreshStatus()`) — chosen specifically to prevent the finance ledger from ever drifting out of sync.
 - **Policy-layer scoping, not just UI-hiding**, for teacher access (own classes/subjects only) — verified via direct-URL-access tests, not just "the button isn't shown."
 - **Group membership and assessed proficiency are separate facts, never synchronised.** A student assessed Blue may legitimately still attend Green A. Recording a new level closes the old one and opens a new one; it does not touch group membership, because moving a student is a human decision that a re-assessment only informs.
-- **Two integrity rules live in services, not constraints.** Grade eligibility for an English group, and "one open English group per programme", both depend on a join path (group → level → programme) that a unique index cannot express without copying `english_programme_id` onto the membership row. They are enforced in `app/Services/` inside a transaction that locks the student row first. Documented as application-level so nobody assumes the database is the backstop.
-- **A student's grade is resolved only through the existing class structure.** `StudentGradeResolver` is the single place that knows the path, and it refuses to guess: where Phase 1's flat `class_student` allows a student two active classes in different grades in one year, it reports the ambiguity rather than picking one the way `Student::currentClass()` does.
+- **Effective-date integrity lives in services, not constraints.** Grade eligibility, no-overlapping-membership (within a group and within a programme), and no-overlapping-proficiency all need either a date-range exclusion constraint (PostgreSQL-only; SQLite runs the test suite) or a join through `english_levels` that an index cannot see without copying `english_programme_id` onto every membership row. All are enforced in `app/Services/` inside a transaction that locks the student row first. Documented as application-level so nobody assumes the database is the backstop — verified directly: PostgreSQL does accept overlapping closed ranges.
+- **A student's grade is resolved only through the existing class structure, and the resolver never guesses.** `StudentGradeResolver` is the single place that knows the path. Where Phase 1's flat `class_student` allows a student two active classes in different grades in one year, it reports the ambiguity rather than picking one the way `Student::currentClass()` does. It likewise refuses to substitute the current academic year for a date that matches no configured year, or to pick between two overlapping years.
 - **Proficiency levels are scoped per programme, never globally.** Rahai runs more than one English framework at once, so uniqueness on level name and sequence is `(programme, name)` and `(programme, sequence)` — "Level A" can legitimately exist in two frameworks. A grade maps to at most one programme (`UNIQUE(grade_id)`), enforced by the database rather than the UI.
 - **Pivot writes go through a real model, never `attach()`/`sync()`.** Those methods operate through the query builder and fire no Eloquent events, so an `Auditable` pivot written that way silently records nothing. Verified empirically before relying on it; `EnglishProgrammeGrade` is a full model and its `belongsToMany` counterpart is marked read-only.
 - **Academic periods are data, not constants.** `academic_periods` (Semester 1/2 for Rahai) replaced the hardcoded Term 1/2/3 vocabulary; the report card renders whatever periods a year defines, ordered by `sequence`. `assessments.term` is deprecated and unreferenced, pending a later drop migration.
@@ -66,8 +67,8 @@
 
 ## Testing Status
 
-- **122/122 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
-- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (45), plus 1 baseline routing test.
+- **138/138 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
+- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), plus 1 baseline routing test.
 - Tests focus on business rules and authorization scoping (e.g. "a teacher cannot record attendance for a class they don't teach," "an invoice's items lock once a payment exists") rather than exhaustive UI coverage.
 - Every module has also been manually verified end-to-end in-browser (desktop + mobile viewports, across at least two roles) before being marked complete.
 

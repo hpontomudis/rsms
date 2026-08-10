@@ -4,6 +4,29 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 - Phase 5 Step 2a-ii (integrity refinements)
+
+### Changed
+- **Academic-year resolution for a placement no longer falls back to the current year.** It resolves `started_on` against `academic_years.start_date`/`end_date` and uses the single match; zero matches are rejected ("The date ... does not fall within a configured Academic Year") and more than one match is rejected as ambiguous. The old fallback could validate a 2020 placement against 2026's grade without saying so. Nothing in the schema stops two academic years overlapping, so that case is reported rather than resolved with first().
+
+### Fixed
+- **Overlapping proficiency history is now rejected.** The partial unique index stops two OPEN placements but says nothing about closed ones, so Green 1 Jul - 31 Dec alongside Blue 1 Oct - 31 Jan was previously accepted. Placement validity ranges may no longer overlap for one student; a null `ended_on` counts as open-ended, and adjacent ranges (ends 15 Dec / starts 16 Dec) remain valid. A backdated placement landing inside an earlier closed period is refused.
+- **Overlapping group membership is now rejected on dates, not just on "is it open".** Two rules: membership periods may not overlap within one group (generic groups included), and may not overlap across different groups of the same English programme. Green -> Blue -> Green stays recordable as long as the ranges do not collide; generic groups remain exempt from the programme rule and may overlap anything.
+- The add-student picker now filters against the start date in the form rather than against today, and the date field is live-bound so the list updates as the date changes. The picker and the service rule use the same predicate, so what the list shows and what the server accepts cannot disagree.
+
+### Notes
+- Verified directly against PostgreSQL that overlapping CLOSED ranges are accepted by the database in both tables -- which is exactly why these rules are service-level. A portable constraint would need a date-range exclusion constraint (PostgreSQL-only; SQLite runs the test suite), and the programme rule would additionally need `english_programme_id` copied onto every membership row. Neither was done.
+- All three checks run inside the existing transaction that locks the student row before reading and writing.
+- The Phase 1 `class_student` ambiguity and the possibility of overlapping academic years are now recorded as technical debt rather than silently worked around.
+
+### Tests
+- `TeachingGroupTest` 45 -> 61 tests. Suite: 122 to 138 passing.
+
+### Dev data
+- The manual Green A / Blue A verification groups, Andi's verification membership history, and his verification placements were removed through the models, so the deletions are audited. Seeded reference data (programmes, levels, grade applicability) untouched; audit logs retained.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 2a-ii
 
 ### Added

@@ -35,6 +35,10 @@ class StudentGradeResolver
 
     public const AMBIGUOUS = 'ambiguous_grade';
 
+    public const NO_YEAR = 'no_academic_year';
+
+    public const AMBIGUOUS_YEAR = 'ambiguous_academic_year';
+
     /**
      * The student's grade within one academic year, or null if it cannot be
      * determined unambiguously. $reason receives NO_CLASS or AMBIGUOUS.
@@ -69,23 +73,33 @@ class StudentGradeResolver
      * is whatever it was when the placement started).
      *
      * academic_years.start_date and end_date are both NOT NULL, so the range
-     * test is safe. If no year covers the date -- a gap between years, or a
-     * year not yet created -- this falls back to the year flagged current,
-     * which is what an administrator entering data today means.
+     * test is safe. There is deliberately NO fallback to the year flagged
+     * current: substituting today's year for an unmatched historical date
+     * would validate a 2024 placement against 2026's grade and say nothing.
+     * Zero matches and multiple matches are both reported, never guessed
+     * through -- nothing in the schema stops two academic years overlapping.
      */
-    public function yearForDate(Carbon $date): ?AcademicYear
+    public function yearForDate(Carbon $date, ?string &$reason = null): ?AcademicYear
     {
         $matches = AcademicYear::where('start_date', '<=', $date)
             ->where('end_date', '>=', $date)
             ->get();
 
-        if ($matches->count() === 1) {
-            return $matches->first();
+        if ($matches->isEmpty()) {
+            $reason = self::NO_YEAR;
+
+            return null;
         }
 
-        // Zero matches, or overlapping years someone configured by hand:
-        // neither is safe to guess through, so defer to the current year.
-        return AcademicYear::current();
+        if ($matches->count() > 1) {
+            $reason = self::AMBIGUOUS_YEAR;
+
+            return null;
+        }
+
+        $reason = null;
+
+        return $matches->first();
     }
 
     /**
@@ -93,14 +107,26 @@ class StudentGradeResolver
      */
     public function gradeOn(Student $student, Carbon $date, ?string &$reason = null): ?Grade
     {
-        $year = $this->yearForDate($date);
+        $year = $this->yearForDate($date, $reason);
 
         if (! $year) {
-            $reason = self::NO_CLASS;
-
             return null;
         }
 
         return $this->gradeForYear($student, $year->id, $reason);
+    }
+
+    /**
+     * A human-readable explanation for any of the four failure reasons, so
+     * callers do not each invent their own wording.
+     */
+    public function explain(?string $reason, Student $student, Carbon $date): string
+    {
+        return match ($reason) {
+            self::NO_YEAR => 'The date '.$date->toDateString().' does not fall within a configured Academic Year.',
+            self::AMBIGUOUS_YEAR => 'The date '.$date->toDateString().' falls within more than one configured Academic Year, so the school year cannot be determined.',
+            self::AMBIGUOUS => "{$student->fullName()} has active classes in more than one grade for that Academic Year, so their grade cannot be determined.",
+            default => "{$student->fullName()} has no active class for that date, so their grade cannot be determined.",
+        };
     }
 }

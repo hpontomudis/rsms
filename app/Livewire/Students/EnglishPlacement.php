@@ -73,16 +73,15 @@ class EnglishPlacement extends Component
 
     public function render(EnglishPlacementService $placements, StudentGradeResolver $grades)
     {
-        $grade = $grades->gradeOn($this->student, Carbon::today(), $reason);
+        $today = Carbon::today();
+        $grade = $grades->gradeOn($this->student, $today, $reason);
 
         return view('livewire.students.english-placement', [
             'current' => $placements->current($this->student),
             'history' => $this->student->englishPlacements()->with('englishLevel.programme')->get(),
             'eligibleLevels' => $placements->eligibleLevels($this->student),
             'grade' => $grade,
-            'gradeProblem' => $grade ? null : ($reason === StudentGradeResolver::AMBIGUOUS
-                ? 'This student has active classes in more than one grade, so their English programme cannot be determined.'
-                : 'This student has no active class in the current academic year, so their English programme cannot be determined.'),
+            'gradeProblem' => $grade ? null : $grades->explain($reason, $this->student, $today),
             'programme' => $grade?->englishProgramme(),
             'activeGroups' => $this->student->teachingGroupMemberships()
                 ->whereNull('ended_on')
