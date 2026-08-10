@@ -1,7 +1,7 @@
 # Project Status
 
-**Current Version:** V4.2
-**Current Phase:** Academics complete; between phases (Communication/V5 not started, on hold per explicit instruction)
+**Current Version:** V4.2 (built) — V5.0 architecture proposed, not yet approved or implemented
+**Current Phase:** Academics (V4) complete and stable. Phase 5 — Academic & Teaching Administration — has a full architecture report and database design written up; **implementation has not started** and will not until explicitly approved.
 **Last verified:** 2026-08-10 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
@@ -18,12 +18,15 @@
 
 ## In Progress
 
-- Nothing currently in progress. **Explicitly paused** — next phase (Communication, V5) is on hold until the user instructs otherwise.
+- Nothing currently coded. **Phase 5 (Academic & Teaching Administration) is at the proposal stage**: architecture impact report, database design (13 new tables/pivots), and implementation plan (12 sequential steps) have been produced and documented. Waiting on explicit approval of that architecture before any migration is written.
+- One open product decision needed before implementation: should Curriculum/CP/TP be admin-managed only, or teacher-editable? Proposal defaults to admin-managed; needs confirmation.
+- One existing-file change flagged for approval: adding the `Auditable` trait to `ClassSubject` (currently untouched by Phase 5's design otherwise).
 
 ## Next (pending user instruction)
 
+- Approve, adjust, or reject the Phase 5 architecture proposal.
 - Scope and build Excel import/export (Students first) — waiting on admin staff to confirm what data/columns their existing spreadsheets contain.
-- Communication module (V5) — not started, no detailed scope yet.
+- Communication module (now V7, renumbered to make room for Phase 5) — not started, no detailed scope yet.
 
 ## Known Issues / Gaps
 

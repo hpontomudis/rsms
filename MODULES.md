@@ -2,7 +2,7 @@
 
 This file tracks each module and its current, actually-implemented functionality. It is the first thing to check before starting new work, and the first thing to update after finishing it.
 
-Status values: `Complete`, `In Progress`, `Planned`, `Not Started`.
+Status values: `Complete`, `In Progress`, `Proposed` (architecture written, awaiting approval, no code), `Planned`, `Not Started`.
 
 ---
 
@@ -130,9 +130,48 @@ Known simplification: `term` is a free-text string on `assessments`, and the rep
 
 ---
 
-## V5 — Communication
+## V5 — Academic & Teaching Administration
 
-Status: Planned (not started)
+Status: **Proposed** — full architecture report and database design produced and reviewed; **no migrations, models, or UI exist yet**. Do not treat anything below as built.
+
+Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data, anchored to the existing `class_subject` "teaching assignment" record so teacher/subject/class/grade/academic-year never need re-entering.
+
+Proposed features:
+- **Curriculum:** name/code/description, `status` (draft/active/archived) — admin-managed, framework-level, not tied to one academic year
+- **Capaian Pembelajaran (CP):** linked to curriculum + subject + optional grade; admin-managed
+- **Tujuan Pembelajaran (TP):** linked to a CP, ordered via a `sequence` field; admin-managed
+- **Alur Tujuan Pembelajaran (ATP):** an ordered selection of TPs for a specific teaching assignment (`class_subject`), via header + `atp_items`; teacher-managed, scoped to their own assignment
+- **Program Tahunan (Prota):** a thin publish/finalize wrapper around an ATP for a teaching assignment — deliberately has no items of its own, reuses the ATP's — teacher-managed
+- **Program Semester (Prosem):** semester-level plan (week-by-week items, free-text week labels rather than a rigid calendar) — teacher-managed
+- **Modul Ajar (Teaching Module):** the richest record — links to CP/TP/ATP/an actual Assessment (optional), planning narrative fields (materials, methods, activities, assessment strategy, reflection, differentiation) — only `title` and the teaching assignment are required, everything else optional
+- **Jurnal Harian Guru (Daily Journal):** what was actually taught, distinct from the Module's plan; auto-derives teacher/subject/class/grade/year from the teaching assignment; optionally references a Teaching Module, an Attendance session (counts computed live, never copied), and an Assessment (scores stay in the existing assessment tables)
+- **Journal Dashboard:** "my teaching journal" calendar view, filterable by class/subject/date
+- **Teaching Administration Dashboard:** per-teacher completion view; admin/principal school-wide view — completion metrics compare journal entries against actual attendance sessions taken (no fabricated "expected sessions" number, since no timetable/schedule module exists yet)
+
+Explicitly out of scope for V5 (per the spec that produced this proposal):
+- Document export/generation (DOCX/PDF) — deferred to V6
+- A formal academic-calendar/timetable/scheduling system — deferred to a future phase
+- An approval/review workflow beyond a simple draft/completed/reviewed status on journals
+
+Reuses without modification: `academic_years`, `grades`, `subjects`, `classes`, `class_subject`, `staff`, `assessments`, `assessment_results`, `attendance`, `attendance_records`, `audit_logs`.
+
+One existing file flagged for a small additive change (pending approval): `ClassSubject` doesn't currently use the `Auditable` trait; the spec asks for "teaching assignment changes" to be logged.
+
+Full table list, relationship rationale, and delete-safety rules: see the Phase 5 architecture proposal (repository conversation / commit history — not duplicated here to avoid this file drifting out of sync with the authoritative version).
+
+---
+
+## V6 — Document Generation
+
+Status: Not started (not scoped — deliberately deferred until V5 exists and is stable)
+
+Long-term goal: structured V5 data → template → generated DOCX/PDF for Prota, Prosem, ATP, Modul Ajar, Jurnal Harian, Rapor, semester reports.
+
+---
+
+## V7 — Communication
+
+Status: Planned (not started; renumbered from V5 to make room for Academic & Teaching Administration above)
 
 Anticipated features (from the original PRD, not yet scoped in detail):
 - Announcements (school-wide / grade / class scoped)
@@ -141,9 +180,9 @@ Anticipated features (from the original PRD, not yet scoped in detail):
 
 ---
 
-## V6 — AI-Assisted Management
+## V8 — AI-Assisted Management
 
-Status: Planned (not started)
+Status: Planned (not started; renumbered from V6)
 
 ---
 

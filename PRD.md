@@ -6,7 +6,7 @@
 | Organization | Yayasan Pendidikan Halmahera Membangun Bangsa |
 | Location | North Halmahera, Indonesia |
 | Document type | Living master blueprint — update only for material changes (see rule at bottom) |
-| Last updated | 2026-08-10 (V4.2) |
+| Last updated | 2026-08-10 (V4.2 built; V5 architecture proposed, pending approval) |
 
 ---
 
@@ -71,8 +71,10 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Attendance | V2 | Complete |
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
-| Communication | V5 (not started) | Planned |
-| AI-assisted reporting | V6 (not started) | Planned |
+| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **Proposed** — architecture written up, awaiting approval, not implemented |
+| Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
+| Communication | V7 | Planned |
+| AI-assisted reporting | V8 | Planned |
 
 See `MODULES.md` for the authoritative, per-module feature breakdown and status.
 
@@ -125,16 +127,20 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V3.0 | Finance | Complete |
 | V4.0 | Academics | Complete |
 | V4.1 | Sidebar navigation redesign | Complete |
-| V4.2 | Staff position type-to-add + new default positions | Complete (current) |
-| V5.0 | Communication | Not started |
-| V6.0 | AI-assisted management | Not started |
+| V4.2 | Staff position type-to-add + new default positions | Complete (current build) |
+| V5.0 | Academic & Teaching Administration | **Proposed** — architecture report + DB design written, awaiting explicit approval before implementation |
+| V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
+| V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |
+| V8.0 | AI-assisted management | Not started (renumbered from V6) |
 
 ## 12. Future Roadmap (not committed, not designed in detail)
 
+- **Academic & Teaching Administration (V5)** — Curriculum, Capaian Pembelajaran (CP), Tujuan Pembelajaran (TP), Alur Tujuan Pembelajaran (ATP), Program Tahunan (Prota), Program Semester (Prosem), Teaching Modules (Modul Ajar), Daily Teacher Journal (Jurnal Harian Guru), and teaching-administration dashboards. Full architecture proposal exists (see repository conversation history / commit for the Phase 5 proposal) — anchors everything to the existing `class_subject` "teaching assignment" record rather than duplicating teacher/subject/class/academic-year data. **Not implemented; awaiting approval.**
+- Document generation (V6) — structured Phase 5 data rendered into printable Prota/Prosem/ATP/Modul Ajar/Jurnal/Rapor documents. Explicitly deferred until Phase 5's data model exists and is stable.
 - Parent portal (login scoped via `student_guardian`, read-only view of their own children's attendance/fees/grades).
 - Excel/CSV bulk import + export for Students (and later Guardians/Staff) — requested, not yet scoped or built. Design note: guardian relationships don't fit one flat row cleanly; likely solved with repeated `guardian_1_*`/`guardian_2_*` columns rather than a second linked sheet.
-- Communication module (announcements, follow-up logs, notifications).
-- AI-assisted natural-language reporting (read-only, query-grounded — never a free-form number generator).
+- Communication module (V7): announcements, follow-up logs, notifications.
+- AI-assisted natural-language reporting (V8, read-only, query-grounded — never a free-form number generator).
 - Multi-school support (not blocked by current schema, not built).
 
 ---
