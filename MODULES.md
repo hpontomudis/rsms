@@ -134,7 +134,30 @@ Features:
 
 ## V5 — Academic & Teaching Administration
 
-Status: **Steps 0 and 1 complete; entities not started.** The architecture is approved. Step 0 (effective-dated teaching assignments) and Step 1 (academic-period canonicalisation) are implemented, tested, and verified — both are documented under V1 Classes / V4 Academics above, since they modified existing modules. **None of the Phase 5 entities below exist yet.**
+Status: **Steps 0, 1 and 2a-i complete; planning entities not started.** The architecture is approved. Step 0 (effective-dated teaching assignments) and Step 1 (academic-period canonicalisation) modified existing modules and are documented under V1 Classes / V4 Academics above. Step 2a-i (English programmes & proficiency levels) is a new module, documented immediately below. **None of the planning entities listed further down exist yet.**
+
+### English Programmes & Proficiency Levels *(Phase 5 Step 2a-i)*
+Status: Complete
+
+Rahai teaches English in proficiency groups that cut across classes, and runs more than one framework: Primary uses colour levels (Purple → Pink → Gold → Green → Blue → Red), Junior High uses Level A/B/C, and Senior High has no programme at all. This module holds the *reference data* for that — which programmes and levels exist, and which grades each programme applies to.
+
+Features:
+- Programme CRUD (name, optional code, description, active/archived status)
+- Inline level management on the programme screen: add, reorder (up/down), archive. Levels are **archived, never deleted** — a level stays a valid reference for historical data even when no student currently occupies it
+- Grade applicability: link/unlink grades to a programme. The "add grade" dropdown offers only grades not already claimed by another programme
+- Read access for anyone with `academics.view` (teachers included, read-only); write requires `academics.manage` (super_admin, principal, admin_staff)
+- Audit-logged (create/update/delete on programmes, levels, and grade links)
+
+Seeded reality: Primary English Programme (`PRI-ENG`, 6 levels, Year 1–6) and Junior High English Programme (`JHS-ENG`, 3 levels, Year 7–9). Kindergarten 1–2 and Year 10–12 intentionally map to no programme.
+
+Rules enforced at the **database** level, not just in the UI:
+- Programme names are globally unique; level names and sequences are unique **per programme**, so "Level A" may exist in more than one framework
+- `UNIQUE(grade_id)` on the pivot — a grade belongs to at most one programme, or to none
+- `RESTRICT` on both foreign keys: a programme with levels cannot be deleted, and a grade referenced by a programme cannot be deleted
+
+Implementation note worth keeping: the grade pivot is a real Eloquent model (`EnglishProgrammeGrade`), not a `belongsToMany` write path. `attach()`/`detach()`/`sync()` go through the query builder and fire no model events, so an `Auditable` pivot written that way records nothing — verified empirically, not assumed. All writes go through `create()`/`delete()`; `grades()` exists but is marked read-only.
+
+Not yet built (Step 2a-ii onward, awaiting approval): teaching groups, group membership, per-student level placement, and anything that assigns a student *to* a level.
 
 Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data, anchored to the existing `class_subject` "teaching assignment" record so teacher/subject/class/grade/academic-year never need re-entering.
 
@@ -198,6 +221,6 @@ The user wants to bulk-upload existing spreadsheet data (starting with Students)
 ### App Shell / Navigation
 Status: Complete
 
-- Grouped sidebar layout (People / Academics / Finance sections + icons), permission-driven group visibility
+- Grouped sidebar layout (People / Academics / Finance sections + icons), permission-driven group visibility — Academics now includes English Programmes
 - Mobile slide-in drawer
 - User menu with logout

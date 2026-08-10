@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
             AcademicYearSeeder::class,
             // Must follow AcademicYearSeeder -- periods hang off a year.
             AcademicPeriodSeeder::class,
+            // Must follow GradeSeeder -- programme applicability references grades.
+            EnglishProgrammeSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

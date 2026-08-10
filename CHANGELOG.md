@@ -4,6 +4,34 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 - Phase 5 Step 2a-i
+
+### Added
+- **English Programmes** - reference data for Rahai's proficiency-based English teaching. Two seeded frameworks: Primary (`PRI-ENG`, Purple > Pink > Gold > Green > Blue > Red, Year 1-6) and Junior High (`JHS-ENG`, Level A/B/C, Year 7-9). Kindergarten and Year 10-12 intentionally map to nothing.
+- Management UI at `/english-programmes`: programme CRUD, inline level add/reorder/archive, and grade link/unlink. The grade dropdown offers only grades not already claimed by another programme.
+- `academics.manage` granted to `principal` (previously admin_staff and super_admin only).
+
+### Database
+- `english_programmes` - name unique globally, optional code, description, active/archived status.
+- `english_levels` - `UNIQUE(programme, name)` and `UNIQUE(programme, sequence)`. Deliberately **not** globally unique on name: Rahai runs more than one framework, so "Level A" may legitimately exist in two of them. `RESTRICT` on the programme FK - a programme with levels cannot be deleted.
+- `english_programme_grade` - `UNIQUE(grade_id)`, not a composite. A grade belongs to at most one programme or to none, enforced by the database rather than the UI. `RESTRICT` on both FKs.
+- Levels are archived, never deleted, so a level stays a valid reference for historical data even with no students in it.
+
+### Notes
+- The grade pivot is a real Eloquent model (`EnglishProgrammeGrade`), not a `belongsToMany` write path. `attach()`, `detach()` and `sync()` go through the query builder and fire **no** model events, so an `Auditable` pivot written that way records nothing at all. Measured before relying on it: attach -> 0 audit rows, detach -> 0, `create()` -> 1, `delete()` -> 1. All writes go through the model; `grades()` remains for reads and is marked read-only.
+
+### Fixed
+- Level reorder could violate `UNIQUE(programme, sequence)`. `update()` re-syncs a model's original attributes, so reading the neighbour's "previous" sequence *after* writing to it returned the new value and the swap collided. Both sequences are now captured before either write, and the swap runs through a sentinel value inside a transaction.
+
+### Tests
+- New `EnglishProgrammeTest` (25 tests) covering structure, seeded reality, delete safety, authorization, audit, and the UI paths. Suite: 52 to 77 passing.
+- Verified beyond the suite: PostgreSQL constraint and RESTRICT behaviour on a from-scratch database, seeder idempotency, and manual browser checks as both super_admin (full management, reorder, link/unlink, audit rows written with user and IP) and teacher (read-only - no Edit, Add, reorder, archive, or Remove controls).
+
+### Not included
+- Teaching groups, group membership, and per-student level placement. Step 2a-i is the reference half only; nothing yet assigns a student to a level.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 1
 
 ### Added

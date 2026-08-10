@@ -44,12 +44,15 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web'])
             ->syncPermissions($permissions);
 
+        // The principal holds school-wide academic oversight, which includes
+        // managing academic standards (English programmes/levels, and later
+        // curriculum) -- hence academics.manage, not just academics.view.
         Role::firstOrCreate(['name' => 'principal', 'guard_name' => 'web'])
             ->syncPermissions([
                 'students.view', 'guardians.view', 'staff.view', 'classes.view', 'audit-logs.view',
                 'attendance.view',
                 'finance.view', 'finance.discounts.approve',
-                'academics.view',
+                'academics.view', 'academics.manage',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])

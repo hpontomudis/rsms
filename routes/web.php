@@ -6,6 +6,7 @@ use App\Livewire\Attendance;
 use App\Livewire\Auth\Login;
 use App\Livewire\Classes;
 use App\Livewire\Dashboard;
+use App\Livewire\EnglishProgrammes;
 use App\Livewire\FeeStructures;
 use App\Livewire\Guardians;
 use App\Livewire\Invoices;
@@ -80,6 +81,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/', Invoices\Index::class)->name('index');
         Route::get('/create', Invoices\Create::class)->name('create');
         Route::get('/{invoice}', Invoices\Show::class)->name('show');
+    });
+
+    Route::prefix('english-programmes')->name('english-programmes.')->group(function () {
+        Route::get('/', EnglishProgrammes\Index::class)->name('index');
+        Route::get('/create', EnglishProgrammes\Create::class)->name('create');
+        Route::get('/{englishProgramme}', EnglishProgrammes\Show::class)->name('show');
+        Route::get('/{englishProgramme}/edit', EnglishProgrammes\Edit::class)->name('edit');
     });
 
     Route::prefix('subjects')->name('subjects.')->group(function () {

@@ -6,7 +6,7 @@
 | Organization | Yayasan Pendidikan Halmahera Membangun Bangsa |
 | Location | North Halmahera, Indonesia |
 | Document type | Living master blueprint — update only for material changes (see rule at bottom) |
-| Last updated | 2026-08-10 (V4.2 built; V5 architecture proposed, pending approval) |
+| Last updated | 2026-08-10 (V4.5 built — Phase 5 Steps 0/1/2a-i; V5 planning entities approved, not started) |
 
 ---
 
@@ -71,7 +71,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Attendance | V2 | Complete |
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
-| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **Proposed** — architecture written up, awaiting approval, not implemented |
+| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0, 1 and 2a-i built; the planning entities themselves not started |
 | Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
 | Communication | V7 | Planned |
 | AI-assisted reporting | V8 | Planned |
@@ -128,14 +128,18 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V4.0 | Academics | Complete |
 | V4.1 | Sidebar navigation redesign | Complete |
 | V4.2 | Staff position type-to-add + new default positions | Complete (current build) |
-| V5.0 | Academic & Teaching Administration | **Proposed** — architecture report + DB design written, awaiting explicit approval before implementation |
+| V4.3 | Phase 5 Step 0 — effective-dated teaching assignments | Complete |
+| V4.4 | Phase 5 Step 1 — academic-period canonicalisation | Complete |
+| V4.5 | Phase 5 Step 2a-i — English programmes & proficiency levels | Complete (current build) |
+| V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
 | V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
 | V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |
 | V8.0 | AI-assisted management | Not started (renumbered from V6) |
 
 ## 12. Future Roadmap (not committed, not designed in detail)
 
-- **Academic & Teaching Administration (V5)** — Curriculum, Capaian Pembelajaran (CP), Tujuan Pembelajaran (TP), Alur Tujuan Pembelajaran (ATP), Program Tahunan (Prota), Program Semester (Prosem), Teaching Modules (Modul Ajar), Daily Teacher Journal (Jurnal Harian Guru), and teaching-administration dashboards. Full architecture proposal exists (see repository conversation history / commit for the Phase 5 proposal) — anchors everything to the existing `class_subject` "teaching assignment" record rather than duplicating teacher/subject/class/academic-year data. **Not implemented; awaiting approval.**
+- **Academic & Teaching Administration (V5)** — Curriculum, Capaian Pembelajaran (CP), Tujuan Pembelajaran (TP), Alur Tujuan Pembelajaran (ATP), Program Tahunan (Prota), Program Semester (Prosem), Teaching Modules (Modul Ajar), Daily Teacher Journal (Jurnal Harian Guru), and teaching-administration dashboards. Full architecture proposal exists (see repository conversation history / commit for the Phase 5 proposal) — anchors everything to the existing `class_subject` "teaching assignment" record rather than duplicating teacher/subject/class/academic-year data. Its prerequisite steps are built (effective-dated assignments, academic periods, English programmes); **the planning entities themselves are not implemented and await explicit go-ahead.**
+- **Non-class-based teaching groups (V5 Step 2a-ii onward)** — English is taught in proficiency groups that cut across classes. Step 2a-i built the *reference* half of this (which programmes and levels exist, and which grades they apply to). Still to come: teaching groups, group membership, and per-student level placement. **Not implemented.**
 - Document generation (V6) — structured Phase 5 data rendered into printable Prota/Prosem/ATP/Modul Ajar/Jurnal/Rapor documents. Explicitly deferred until Phase 5's data model exists and is stable.
 - Parent portal (login scoped via `student_guardian`, read-only view of their own children's attendance/fees/grades).
 - Excel/CSV bulk import + export for Students (and later Guardians/Staff) — requested, not yet scoped or built. Design note: guardian relationships don't fit one flat row cleanly; likely solved with repeated `guardian_1_*`/`guardian_2_*` columns rather than a second linked sheet.

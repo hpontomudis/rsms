@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable(['name', 'level_order'])]
 class Grade extends Model
@@ -22,5 +23,20 @@ class Grade extends Model
     public function subjects(): HasMany
     {
         return $this->hasMany(Subject::class);
+    }
+
+    /**
+     * At most one English programme applies to a grade (enforced by
+     * UNIQUE(grade_id) on the pivot); grades outside any programme -- KG and
+     * Senior High today -- simply have no row.
+     */
+    public function englishProgrammeLink(): HasOne
+    {
+        return $this->hasOne(EnglishProgrammeGrade::class);
+    }
+
+    public function englishProgramme(): ?EnglishProgramme
+    {
+        return $this->englishProgrammeLink?->programme;
     }
 }

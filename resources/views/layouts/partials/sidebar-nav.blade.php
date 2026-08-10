@@ -28,6 +28,7 @@
             'items' => array_values(array_filter([
                 Route::has('classes.index') && $user->can('classes.view') ? $navItem('classes.index', 'Classes', 'classes') : null,
                 Route::has('subjects.index') && $user->can('academics.view') ? $navItem('subjects.index', 'Subjects', 'subjects') : null,
+                Route::has('english-programmes.index') && $user->can('academics.view') ? $navItem('english-programmes.index', 'English Programmes', 'subjects') : null,
                 Route::has('attendance.take') && $user->can('attendance.record')
                     ? $navItem('attendance.take', 'Attendance', 'attendance', 'attendance.*')
                     : (Route::has('attendance.report') && $user->can('attendance.view')
