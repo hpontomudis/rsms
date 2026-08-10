@@ -120,4 +120,128 @@
             </ul>
         @endif
     </div>
+
+    {{-- Teaching assignments. Subject + teacher for this group, stored in
+         class_subject exactly like a class-backed assignment. --}}
+    <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="mb-3 flex items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold text-slate-700">Teaching Assignments</h2>
+            @can('update', $teachingGroup)
+                @if ($teachingGroup->isActive())
+                    <button type="button" wire:click="$toggle('showAssignSubject')"
+                        class="flex-shrink-0 text-xs font-medium text-brand-navy hover:underline">+ Assign Subject</button>
+                @endif
+            @endcan
+        </div>
+
+        @can('update', $teachingGroup)
+            @if ($showAssignSubject)
+                <form wire:submit="assignSubject" class="mb-4 rounded-lg bg-slate-50 p-3">
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-slate-600">Subject</label>
+                            <select wire:model="subject_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                <option value="">Select a subject&hellip;</option>
+                                @foreach ($availableSubjects as $subject)
+                                    <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('subject_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-slate-600">Teacher</label>
+                            <select wire:model="assignment_staff_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                <option value="">Select a teacher&hellip;</option>
+                                @foreach ($availableStaff as $member)
+                                    <option value="{{ $member->id }}">{{ $member->fullName() }}</option>
+                                @endforeach
+                            </select>
+                            @error('assignment_staff_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap items-end gap-3">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-slate-600">Started On</label>
+                            <input type="date" wire:model="assignment_started_on"
+                                class="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        </div>
+                        <button type="submit"
+                            class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy/90">Assign</button>
+                    </div>
+
+                    @error('started_on') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('teaching_group_id') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+
+                    <p class="mt-2 text-xs text-slate-500">
+                        Assigning a subject that already has a teacher hands it over: the current
+                        assignment is closed and a new one opened, so past work keeps naming the
+                        teacher who did it.
+                    </p>
+                </form>
+            @endif
+        @endcan
+
+        @if ($activeAssignments->isEmpty())
+            <p class="text-sm text-slate-500">No subjects assigned to this group yet.</p>
+        @else
+            <ul class="divide-y divide-slate-100 text-sm">
+                @foreach ($activeAssignments as $assignment)
+                    <li class="py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="truncate font-medium text-slate-900">{{ $assignment->subject->name }}</p>
+                                <p class="truncate text-xs text-slate-500">
+                                    {{ $assignment->teacher->fullName() }} &middot; since {{ $assignment->started_on->format('d M Y') }}
+                                </p>
+                            </div>
+                            @can('update', $teachingGroup)
+                                <button type="button" wire:click="startEndingAssignment({{ $assignment->id }})"
+                                    class="flex-shrink-0 text-xs text-red-500 hover:text-red-700">End</button>
+                            @endcan
+                        </div>
+
+                        @if ($endingAssignmentId === $assignment->id)
+                            <form wire:submit="endAssignment" class="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-slate-600">Ended On</label>
+                                    <input type="date" wire:model="assignment_ended_on"
+                                        class="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                </div>
+                                <button type="submit" class="rounded-md bg-brand-navy px-3 py-2 text-xs font-medium text-white">End Assignment</button>
+                                <button type="button" wire:click="cancelEndingAssignment" class="px-2 py-2 text-xs text-slate-500 hover:text-slate-700">Cancel</button>
+                                @error('assignment_ended_on') <p class="w-full text-xs text-red-600">{{ $message }}</p> @enderror
+                                @error('ended_on') <p class="w-full text-xs text-red-600">{{ $message }}</p> @enderror
+                            </form>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+
+        @if ($pastAssignments->isNotEmpty())
+            <div class="mt-4 border-t border-slate-100 pt-3">
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Previous Teachers</h3>
+                <ul class="divide-y divide-slate-100 text-sm">
+                    @foreach ($pastAssignments as $assignment)
+                        <li class="flex items-center justify-between gap-2 py-2">
+                            <span class="truncate text-slate-700">
+                                {{ $assignment->subject->name }} &middot; {{ $assignment->teacher->fullName() }}
+                            </span>
+                            <span class="flex-shrink-0 text-xs text-slate-500">
+                                {{ $assignment->started_on->format('d M Y') }} &ndash; {{ $assignment->ended_on->format('d M Y') }}
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <p class="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Assessments and report cards do not read teaching-group assignments yet. The
+            assignment is recorded, but scores for this group cannot be entered until a
+            later step connects them.
+        </p>
+    </div>
 </div>

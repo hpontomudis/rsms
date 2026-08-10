@@ -4,6 +4,36 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 - Phase 5 Step 2b
+
+### Added
+- **`class_subject` now backs a teaching assignment with EITHER an administrative class OR a teaching group.** `class_id` became nullable, `teaching_group_id` was added, and a CHECK constraint enforces exactly one of the two. The table and model keep their names deliberately — renaming them would churn `assessments.class_subject_id` and every other reference for no behavioural gain. Conceptually a row is a Teaching Assignment.
+- Teaching Assignments section on the teaching-group screen: assign subject + teacher, hand over to a different teacher, end an assignment, and read previous teachers with their date ranges.
+- `TeachingAssignmentService` — the group-side workflow, mirroring Step 0's close-and-create.
+
+### Database
+- `class_subject.class_id` nullable; `class_subject.teaching_group_id` nullable, FK RESTRICT.
+- `CHECK ((class_id IS NULL) <> (teaching_group_id IS NULL))` — neither and both are rejected by the database.
+- New partial unique index on `(teaching_group_id, subject_id) WHERE ended_on IS NULL`, alongside the existing class one. Closed history stays unlimited, so Sarah -> Eka handovers are representable.
+- **Written twice on purpose.** Neither half of this migration is portable: PostgreSQL has `ALTER COLUMN ... DROP NOT NULL` and `ADD CONSTRAINT`, SQLite has neither. PostgreSQL alters in place; SQLite rebuilds the table (create, copy, drop, rename) preserving row ids so assessments keep pointing at the right assignment. Both paths verified.
+
+### Changed
+- `ClassSubject` gained `teachingGroup()`, `isClassBacked()`, `isTeachingGroupBacked()`, and `classBacked()`/`teachingGroupBacked()` scopes. A model guard makes the roster source immutable: repointing a row from one class to another, class to group, or Green A to Blue A throws, because it would rewrite what every assessment hanging off it was about. End the assignment and create the correct one instead.
+- Existing class-backed assignments were not rewritten and behave exactly as before.
+
+### Not included, deliberately
+- **Teaching-group assessments are not implemented.** `Assessments\\Create` still resolves its academic year through `classSubject->schoolClass`, so it serves class-backed assignments only, and nothing links to it from a group. A hand-crafted URL pointing it at a group-backed assignment would error; that is the known boundary until Step 2c.
+- ReportCard does not discover group-backed assignments; English-group results do not appear. (Step 2d.)
+- `StudentPolicy` is untouched. Teaching a group grants a teacher nothing, and teachers cannot see teaching groups at all.
+
+### Tests
+- New `TeachingAssignmentTest` (28 tests): structure, both-and-neither rejection, active uniqueness for classes and groups, reassignment and no-op reassignment, archived-group rules, academic-year and overlap validation, roster-source immutability, audit, and authorization including an explicit check that StudentPolicy still refuses. Suite: 138 to 166 passing.
+
+### Fixed
+- Documentation correction: the Step 2a-ii report totalled the retained audit rows as 13; the actual count is 15 and matches the per-model breakdown. Counting error in the report only — no audit rows were deleted.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 2a-ii (integrity refinements)
 
 ### Changed
@@ -23,7 +53,7 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 - `TeachingGroupTest` 45 -> 61 tests. Suite: 122 to 138 passing.
 
 ### Dev data
-- The manual Green A / Blue A verification groups, Andi's verification membership history, and his verification placements were removed through the models, so the deletions are audited. Seeded reference data (programmes, levels, grade applicability) untouched; audit logs retained.
+- The manual Green A / Blue A verification groups, Andi's verification membership history, and his verification placements were removed through the models, so the deletions are audited. Seeded reference data (programmes, levels, grade applicability) untouched; all 15 audit rows from the verification session retained (4 group, 6 membership, 5 placement).
 
 ---
 

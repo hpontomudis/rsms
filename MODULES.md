@@ -73,6 +73,7 @@ Features:
 - Student roster (enroll/unenroll with date)
 - Subject assignment (see Academics module — `class_subject`)
 - **Effective-dated teaching assignments** *(Phase 5 Step 0)*: reassigning a subject to a different teacher closes the outgoing assignment (`ended_on`) and opens a new one rather than overwriting it, so past assessments keep identifying the teacher who actually recorded them. A partial unique index permits exactly one active assignment per class+subject alongside any number of closed ones. The class screen lists active assignments only.
+- **`class_subject` is now the Teaching Assignment store** *(Phase 5 Step 2b)*: a row is one subject, taught to one roster, by one staff member, over a date range — and the roster is **either** an administrative class **or** a teaching group, never both and never neither. The table and model keep their old names deliberately; renaming them would churn every reference (`assessments.class_subject_id` above all) for no behavioural gain. Class-backed assignments are unchanged in every respect.
 
 ---
 
@@ -191,7 +192,32 @@ Authorization is deliberately stricter than Step 2a-i: rosters and placements re
 
 Known ambiguity carried over from Phase 1 (documented, not redesigned here): `class_student` is flat, with a `status` enum and no effective dating, and nothing stops a student holding two `active` rows for different classes in the same year. `Student::currentClass()` resolves that with `first()`. Eligibility checks must not be silent, so `StudentGradeResolver` refuses to guess: if the active classes for a year point at more than one distinct grade it reports the data problem instead of picking one.
 
-Not yet built (Step 2b onward, awaiting approval): teaching assignments for groups — nothing yet records who *teaches* a group, and English groups are not assessable.
+### Teaching Assignments for Teaching Groups *(Phase 5 Step 2b)*
+Status: Complete — **structure only; not yet assessable**
+
+A teaching group can now be given a subject and a teacher, stored as an ordinary `class_subject` row with `class_id` NULL and `teaching_group_id` set. There is deliberately no separate `teaching_group_subject` table.
+
+Features:
+- Teaching Assignments section on the group screen: assign a subject + teacher, hand a subject over to a different teacher, end an assignment, and read the history of previous teachers with their date ranges
+- Handover uses the Step 0 close-and-create pattern — the outgoing row keeps its original `staff_id`, so past work keeps naming the teacher who did it. Re-selecting the teacher already in place is a no-op, not a fake succession
+- Assignments cannot be created against an archived group; archiving a group later does **not** touch its existing assignments
+- Audited through the existing `ClassSubject` audit trail: a handover records the close of the old row and the creation of the new one
+
+Enforced by the **database**:
+- `CHECK ((class_id IS NULL) <> (teaching_group_id IS NULL))` — exactly one roster source
+- one active assignment per `class_id + subject_id` (Step 0) and one per `teaching_group_id + subject_id` (new), both partial unique indexes over `ended_on IS NULL`
+- `RESTRICT` on `teaching_group_id`, so a group with assignment history cannot be deleted
+
+Enforced in the **service** (`TeachingAssignmentService`): assignment dates must fall inside the group's own academic year (never the year flagged current), `ended_on >= started_on`, and assignment periods for one group+subject may not overlap — the partial index only stops two *open* rows.
+
+Enforced on the **model**: a row's roster source is immutable. Repointing an assignment from one class to another, from a class to a group, or from Green A to Blue A throws — the supported answer is to end the assignment and open the correct one.
+
+**Not implemented yet, deliberately:**
+- Teaching-group assessments. `Assessments\Create` still resolves its academic year through `classSubject->schoolClass`, so it works for class-backed assignments only. Nothing in the UI links to it from a group. *(Step 2c)*
+- ReportCard integration. Report cards do not discover group-backed assignments and English-group results do not appear. *(Step 2d)*
+- Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' records, and teachers cannot see teaching groups at all. *(later step)*
+
+Not yet built (awaiting approval): the unified roster accessors (`roster()`, `rosterStudentIds()`, `academicYear()`, `displayName()`) that Step 2c will introduce and switch assessment consumers onto.
 
 ### Planning Entities *(Phase 5 Step 2b onward)*
 Status: **Proposed** — architecture approved, no code

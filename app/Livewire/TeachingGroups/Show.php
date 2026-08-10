@@ -2,9 +2,13 @@
 
 namespace App\Livewire\TeachingGroups;
 
+use App\Models\ClassSubject;
+use App\Models\Staff;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\TeachingGroup;
 use App\Models\TeachingGroupStudent;
+use App\Services\TeachingAssignmentService;
 use App\Services\TeachingGroupMembershipService;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
@@ -27,11 +31,24 @@ class Show extends Component
 
     public string $ended_on = '';
 
+    public bool $showAssignSubject = false;
+
+    public string $subject_id = '';
+
+    public string $assignment_staff_id = '';
+
+    public string $assignment_started_on = '';
+
+    public ?int $endingAssignmentId = null;
+
+    public string $assignment_ended_on = '';
+
     public function mount(TeachingGroup $teachingGroup): void
     {
         $this->authorize('view', $teachingGroup);
         $this->teachingGroup = $teachingGroup;
         $this->started_on = $this->defaultDate()->toDateString();
+        $this->assignment_started_on = $this->started_on;
     }
 
     /**
@@ -110,6 +127,61 @@ class Show extends Component
         $this->teachingGroup->refresh();
     }
 
+    // ------------------------------------------------- teaching assignments
+
+    /**
+     * Assign a subject and teacher, or hand the subject over to a different
+     * teacher. Which of the two it is is the service's decision, not the UI's.
+     */
+    public function assignSubject(TeachingAssignmentService $assignments): void
+    {
+        $this->authorize('update', $this->teachingGroup);
+
+        $validated = $this->validate([
+            'subject_id' => ['required', 'exists:subjects,id'],
+            'assignment_staff_id' => ['required', 'exists:staff,id'],
+            'assignment_started_on' => ['required', 'date'],
+        ]);
+
+        $assignments->assignToGroup(
+            $this->teachingGroup,
+            Subject::findOrFail($validated['subject_id']),
+            Staff::findOrFail($validated['assignment_staff_id']),
+            Carbon::parse($validated['assignment_started_on']),
+        );
+
+        $this->reset(['subject_id', 'assignment_staff_id', 'showAssignSubject']);
+        $this->assignment_started_on = $this->defaultDate()->toDateString();
+        $this->teachingGroup->refresh();
+    }
+
+    public function startEndingAssignment(int $assignmentId): void
+    {
+        $this->authorize('update', $this->teachingGroup);
+        $this->endingAssignmentId = $assignmentId;
+        $this->assignment_ended_on = $this->defaultDate()->toDateString();
+        $this->resetErrorBag();
+    }
+
+    public function cancelEndingAssignment(): void
+    {
+        $this->reset(['endingAssignmentId', 'assignment_ended_on']);
+    }
+
+    public function endAssignment(TeachingAssignmentService $assignments): void
+    {
+        $this->authorize('update', $this->teachingGroup);
+
+        $validated = $this->validate(['assignment_ended_on' => ['required', 'date']]);
+
+        $assignment = $this->teachingGroup->teachingAssignments()->findOrFail($this->endingAssignmentId);
+
+        $assignments->endAssignment($assignment, Carbon::parse($validated['assignment_ended_on']));
+
+        $this->reset(['endingAssignmentId', 'assignment_ended_on']);
+        $this->teachingGroup->refresh();
+    }
+
     public function render(TeachingGroupMembershipService $memberships)
     {
         return view('livewire.teaching-groups.show', [
@@ -123,6 +195,13 @@ class Show extends Component
             'eligibleStudents' => $this->showAddStudent
                 ? $memberships->eligibleStudents($this->teachingGroup, $this->parsedStartDate())
                 : collect(),
+            'activeAssignments' => $this->teachingGroup->teachingAssignments()
+                ->active()->with('subject', 'teacher')->get()
+                ->sortBy(fn (ClassSubject $a) => $a->subject->name)->values(),
+            'pastAssignments' => $this->teachingGroup->teachingAssignments()
+                ->closed()->with('subject', 'teacher')->orderByDesc('ended_on')->get(),
+            'availableSubjects' => Subject::orderBy('name')->get(),
+            'availableStaff' => Staff::where('status', 'active')->orderBy('first_name')->get(),
         ]);
     }
 }

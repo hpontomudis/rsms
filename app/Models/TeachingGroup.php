@@ -46,6 +46,15 @@ class TeachingGroup extends Model
         return $this->memberships()->whereNull('ended_on');
     }
 
+    /**
+     * Teaching assignments against this group, open and closed. Stored in
+     * class_subject -- there is deliberately no separate group-subject table.
+     */
+    public function teachingAssignments(): HasMany
+    {
+        return $this->hasMany(ClassSubject::class);
+    }
+
     public function isEnglishGroup(): bool
     {
         return $this->english_level_id !== null;
