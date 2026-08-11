@@ -540,10 +540,12 @@ class TeachingAssignmentAssessmentTest extends TestCase
     }
 
     /**
-     * ReportCard is deliberately untouched in this step: a group-backed result
-     * exists and is stored correctly, but does not surface on the report card.
+     * Step 2c stored group-backed results correctly but left them off the
+     * report card; Step 2d connected them. Kept here as the seam between the
+     * two steps: a score entered through the group workflow must reach the
+     * report card without any second score store.
      */
-    public function test_report_card_still_does_not_discover_group_backed_assignments(): void
+    public function test_a_group_backed_result_reaches_the_report_card(): void
     {
         $this->seedReferenceData();
         $class = $this->schoolClass('Year 5', 'Year 5A');
@@ -559,10 +561,10 @@ class TeachingAssignmentAssessmentTest extends TestCase
             ->set('academic_year_id', (string) $this->year->id)
             ->viewData('rows');
 
-        $this->assertNotContains(
+        $this->assertContains(
             'English',
             $rows->pluck('subject.name')->all(),
-            'ReportCard integration belongs to Step 2d'
+            'the group-backed English result must be discoverable (Step 2d)'
         );
     }
 

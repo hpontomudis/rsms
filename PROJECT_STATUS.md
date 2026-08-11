@@ -1,7 +1,7 @@
 # Project Status
 
-**Current Version:** V4.9 — Phase 5 **Steps 0, 1, 2a-i, 2a-ii, 2b and 2c complete**; Phase 5 planning entities not started
-**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension) and 2c (unified accessors + assessment integration) are implemented, tested, and verified.** Step 2d (report cards) and the planning entities (Curriculum, CP, TP, ATP, Prota, Prosem, Teaching Modules, Daily Journals) are approved in design but **not started** — awaiting explicit go-ahead.
+**Current Version:** V5.0-pre — Phase 5 **Steps 0, 1, 2a-i, 2a-ii, 2b, 2c and 2d complete**; Phase 5 planning entities not started
+**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration) and 2d (report-card discovery) are implemented, tested, and verified.** The planning entities (Curriculum, CP, TP, ATP, Prota, Prosem, Teaching Modules, Daily Journals) are approved in design but **not started** — awaiting explicit go-ahead.
 **Last verified:** 2026-08-10 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
@@ -16,16 +16,16 @@
 - **Sidebar navigation redesign (V4.1):** grouped, permission-driven sidebar replacing the old horizontal nav
 - **Staff position type-to-add (V4.2):** free-type-or-pick position field; added Support Staff / Building Staff to defaults
 - **English Programmes (V4.5 / Phase 5 Step 2a-i):** proficiency frameworks (Primary colour levels, Junior High Level A/B/C) with per-programme level ordering, archive-not-delete levels, and grade applicability
-- **Teaching Assignments for groups (V4.8–V4.9 / Phase 5 Steps 2b + 2c):** `class_subject` extended so an assignment is backed by an administrative class **or** a teaching group, with Step 0 close-and-create handover; and unified roster/year/display accessors so the existing assessment engine serves both identically. Report cards do not yet surface group results.
+- **Teaching Assignments for groups (V4.8–V5.0-pre / Phase 5 Steps 2b + 2c + 2d):** `class_subject` extended so an assignment is backed by an administrative class **or** a teaching group, with Step 0 close-and-create handover; and unified roster/year/display accessors so the existing assessment engine serves both identically; and report-card discovery across both roster sources, merged by subject.
 - **Teaching Groups & English Placement (V4.6 / Phase 5 Step 2a-ii):** year-scoped groups (English or generic), effective-dated membership with rejoin history, and per-student assessed proficiency kept deliberately independent of which group they attend
 
 ## In Progress
 
-- **Phase 5 Steps 0, 1, 2a-i, 2a-ii, 2b and 2c are complete.** Nothing else is in progress; Step 2d onward awaits approval.
+- **Phase 5 Steps 0, 1, 2a-i, 2a-ii, 2b, 2c and 2d are complete.** Nothing else is in progress; the Curriculum entity onward awaits approval.
 
 ## Next (pending user instruction)
 
-- Phase 5 Step 2d: report-card discovery of group-backed assignments, so English-group results appear.
+- **Teacher Workspace / My Teaching Assignments** — an assigned group teacher currently has no navigation path to their own assessments (the link lives on the teaching-group screen, which teachers cannot see). The same entry point should later carry ATP, Prota, Prosem, Teaching Modules and Journals, which is why it was not improvised during report-card work.
 - Teacher scoping through teaching groups (`StudentPolicy`), deferred until a teaching assignment can authorize it.
 - Phase 5 Steps 2e–11: Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
 - Later cleanup migration: drop the deprecated `assessments.term` column once the new architecture has proven stable.
@@ -48,6 +48,8 @@
 ## Important Architectural Decisions
 
 - **`class_subject` is the single Teaching Assignment store.** One row = one subject + one roster + one teacher + a date range, where the roster is an administrative class XOR a teaching group. No parallel `teaching_group_subject` table, and no rename of the physical table — `assessments.class_subject_id` and every other reference keep working, and the domain concept lives in the model's documentation rather than in churn.
+- **Report-card discovery is a union of results and participation.** Results answer "what happened" and survive every later change of membership, assignment or group status; participation answers "what should appear even with no marks yet". Deduplicated by assignment id, so no score is counted twice for being found by both paths.
+- **Report-card rows are merged by subject, never by roster.** English taken in Green A then Blue A is one row with two period columns — the roster a student sat in is not a fact the report card reports on.
 - **A score sheet is the roster on the day, union everyone already scored.** A recorded mark is historical evidence, so a student who leaves a teaching group keeps appearing on assessments they were scored on. The union is computed from `assessment_results` rather than snapshotted, so there is nothing to keep in sync. The same union is the write allowlist.
 - **Roster accessors take a date.** `rosterOn($date)` rather than a bare "current roster", because an ambiguous accessor is how historical assessments silently lose students. Group rosters honour the date; class rosters cannot, because `class_student` is not effective-dated, and that limitation is documented rather than faked.
 - **A teaching assignment's roster source is immutable.** Changing it would rewrite what every assessment hanging off the row was about, so the model throws; the supported answer is end-and-create, the same shape as never mutating `staff_id`.
@@ -73,8 +75,8 @@
 
 ## Testing Status
 
-- **195/195 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
-- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), teaching assignments (28), group assessments (29), teaching assignments (28), group assessments (29), plus 1 baseline routing test.
+- **216/216 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
+- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), teaching assignments (28), group assessments (29), report-card discovery (21), teaching assignments (28), group assessments (29), report-card discovery (21), plus 1 baseline routing test.
 - Tests focus on business rules and authorization scoping (e.g. "a teacher cannot record attendance for a class they don't teach," "an invoice's items lock once a payment exists") rather than exhaustive UI coverage.
 - Every module has also been manually verified end-to-end in-browser (desktop + mobile viewports, across at least two roles) before being marked complete.
 

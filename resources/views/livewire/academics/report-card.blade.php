@@ -15,7 +15,7 @@
 
     @if ($rows->isEmpty())
         <p class="rounded-lg bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
-            No subjects with recorded assessments for this academic year.
+            No subjects for this academic year.
         </p>
     @else
         <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">

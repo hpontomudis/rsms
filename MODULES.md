@@ -192,8 +192,8 @@ Authorization is deliberately stricter than Step 2a-i: rosters and placements re
 
 Known ambiguity carried over from Phase 1 (documented, not redesigned here): `class_student` is flat, with a `status` enum and no effective dating, and nothing stops a student holding two `active` rows for different classes in the same year. `Student::currentClass()` resolves that with `first()`. Eligibility checks must not be silent, so `StudentGradeResolver` refuses to guess: if the active classes for a year point at more than one distinct grade it reports the data problem instead of picking one.
 
-### Teaching Assignments for Teaching Groups *(Phase 5 Steps 2b + 2c)*
-Status: Complete — **assessable; not yet on report cards**
+### Teaching Assignments for Teaching Groups *(Phase 5 Steps 2b + 2c + 2d)*
+Status: Complete — **assessable and reportable**
 
 A teaching group can now be given a subject and a teacher, stored as an ordinary `class_subject` row with `class_id` NULL and `teaching_group_id` set. There is deliberately no separate `teaching_group_subject` table.
 
@@ -233,9 +233,33 @@ Downstream code no longer branches on `class_id`. `ClassSubject` exposes:
 
 Assessment dates and periods come from the assignment's own academic year, so a Green A assessment offers only that year's Semester 1 / Semester 2. `assessments.assessment_date` already existed and is reused as the roster date; no new column was added.
 
+#### Report cards across both roster sources *(Step 2d)*
+
+`ReportCardBuilder` discovers a student's subjects from **two complementary paths**, unioned and deduplicated by assignment id:
+
+1. **Result-driven** — every assignment this student was actually scored on, found through `assessment_results` → `assessments` → `class_subject`. Deliberately unfiltered by membership, assignment state or group state. A recorded mark stays reportable after the student leaves the group, after the assignment closes, after the group is archived and after the teacher changes. *Archived means no new activity, not that the past stops having happened.*
+2. **Participation-driven** — completeness, so a subject appears even before any mark exists. Classes are scoped to the requested academic year exactly as before (no chronology is invented from `class_student`, which has no effective dating). Teaching groups use membership whose validity range **overlaps** the academic year, not merely membership still open today — a Green A membership that closed in December still counts towards the annual report.
+
+Discovery never goes via grade or programme, so a Green A student cannot pick up Blue A's subjects just because both teach English to Year 5.
+
+**Merged by subject, not by assignment.** A student who took English in Green A for Semester 1 and Blue A for Semester 2 gets **one** English row — Semester 1 from Green A, Semester 2 from Blue A. The same holds for a teacher handover inside one group. Rows are never grouped by teacher or by group.
+
+**English stays one ordinary subject.** No programme-specific result type, no English score table, no separate aggregation. Programme context lives in the underlying assignments; Senior High class-based English uses the same subject row.
+
+**Proficiency and score are different facts.** A student's assessed English level is never derived from assessment averages, and no score threshold promotes anyone Blue → Red. Changing a placement does not move a single number on the report card.
+
+**Arithmetic unchanged from Phase 4** — Step 2d widened discovery only:
+- percentage = `score / assessment.max_score × 100`
+- period average = `round(mean of percentages whose assessment sits in that period)`
+- subject overall = `round(mean of percentages of all that subject's results)` — a flat mean over results, **not** a mean of the period averages
+- card overall = `round(mean of the non-null subject overalls)`
+
+Only assessments whose `academic_period_id` belongs to the requested year are consumed. The deprecated `assessments.term` is never read, and columns still come from `academic_periods.sequence`, so a year with three periods renders three columns without a code change.
+
 **Not implemented yet, deliberately:**
-- ReportCard integration. A group-backed result is stored correctly but does **not** surface on the student's report card; `ReportCard` still discovers assignments by `class_id` only. *(Step 2d)*
-- Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' profiles, and teachers cannot see the teaching-group screens at all. Their assessment access comes through the teaching assignment, not through the group. *(later step)*
+- **Teacher Workspace / My Teaching Assignments.** An assigned group teacher can reach their assessments by URL and the policy permits it, but no navigation path exists — the Assessments link lives on the teaching-group screen, which teachers cannot see. The eventual entry point ("My Teaching Assignments": Year 5A → Mathematics, Green A → English) should also carry ATP, Prota, Prosem, Teaching Modules and Journals later, which is exactly why it is not being improvised now.
+- Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' profiles.
+- English proficiency-progress reporting (a level history across the year) and printable/Kindergarten report formats — both belong to the later Reporting & Document Generation work.
 
 ### Planning Entities *(Phase 5 Step 2b onward)*
 Status: **Proposed** — architecture approved, no code

@@ -4,6 +4,37 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-10 - Phase 5 Step 2d
+
+### Added
+- **`ReportCardBuilder`** - report-card discovery extracted from the Livewire component, because it now has to answer a harder question than "which classes is this student in".
+- **Report cards discover teaching-group results.** English taught in Green A now reaches the report card through the same subject row as any other subject.
+
+### Changed
+- Discovery is the **union of two paths**, deduplicated by assignment id:
+  - *result-driven* - every assignment the student was scored on, unfiltered by membership, assignment state or group state. A mark stays reportable after the student leaves the group, after the assignment closes, after the group is archived, after the teacher changes.
+  - *participation-driven* - completeness. Classes stay scoped to the academic year exactly as before; teaching groups use membership whose range OVERLAPS the year, so a Green A membership that closed in December still counts annually.
+- Rows are merged by `subject_id`, so a Green A -> Blue A move produces ONE English row with Semester 1 from Green and Semester 2 from Blue. Never grouped by teacher or group.
+- Results are now explicitly constrained to the requested year's academic periods, so an assessment from another year cannot leak into an average.
+- Empty-state wording corrected: rows can now legitimately exist with no marks, so "No subjects with recorded assessments" became "No subjects for this academic year".
+
+### Unchanged, deliberately
+- **The arithmetic.** percentage = score / max_score x 100; period average = round(mean of that period's percentages); subject overall = round(mean of ALL that subject's percentages) - a flat mean over results, not a mean of period averages; card overall = round(mean of non-null subject overalls). Step 2d widens discovery only; it does not redefine grading.
+- English remains one ordinary subject. No programme result type, no English score table, no separate aggregation.
+- Proficiency is not derived from scores and scores are not derived from proficiency. Changing a placement Blue -> Red moves nothing on the report card - asserted by test.
+- Authorization. No new access was granted; this is a read-model change.
+- **No migration.** Every fact needed was already recorded.
+
+### Not included, deliberately
+- Teacher Workspace / My Teaching Assignments - the navigation gap found in Step 2c remains open, and is recorded as deferred work rather than improvised during reporting.
+- English proficiency-progress reporting and printable/Kindergarten report formats belong to the later Reporting & Document Generation work.
+
+### Tests
+- New `ReportCardDiscoveryTest` (21 tests): class behaviour unchanged, group discovery, leak prevention, archived/closed history, the Green -> Blue move, teacher succession in a group, no-result completeness, year and period integrity, the deprecated `term` column being ignored, and proficiency-vs-score separation. Suite: 195 to 216 passing.
+- The Step 2c test that pinned "ReportCard does not discover group assignments" was converted to assert the opposite - that was the seam Step 2d was approved to move.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 2c
 
 ### Added
