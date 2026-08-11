@@ -97,13 +97,21 @@ class Curriculum extends Model
      * curriculum uses neutral wording rather than borrowing a government term
      * for a school's own framework. Same tables either way.
      *
-     * @return array{outcome: string, outcomes: string, basis: string, bases: string}
+     * @return array{outcome: string, outcomes: string, objective: string, objectives: string, basis: string, bases: string}
      */
     public function vocabulary(): array
     {
         return $this->isEnglishProgrammeBound()
-            ? ['outcome' => 'Learning Outcome', 'outcomes' => 'Learning Outcomes', 'basis' => 'Level', 'bases' => 'Levels']
-            : ['outcome' => 'Capaian Pembelajaran (CP)', 'outcomes' => 'Capaian Pembelajaran (CP)', 'basis' => 'Fase', 'bases' => 'Learning Phases'];
+            ? [
+                'outcome' => 'Learning Outcome', 'outcomes' => 'Learning Outcomes',
+                'objective' => 'Learning Objective', 'objectives' => 'Learning Objectives',
+                'basis' => 'Level', 'bases' => 'Levels',
+            ]
+            : [
+                'outcome' => 'Capaian Pembelajaran (CP)', 'outcomes' => 'Capaian Pembelajaran (CP)',
+                'objective' => 'Tujuan Pembelajaran (TP)', 'objectives' => 'Tujuan Pembelajaran (TP)',
+                'basis' => 'Fase', 'bases' => 'Learning Phases',
+            ];
     }
 
     public function isEnglishProgrammeBound(): bool

@@ -7,6 +7,7 @@ use App\Models\Concerns\BelongsToDraftCurriculum;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One learning outcome -- a Capaian Pembelajaran on the national curriculum,
@@ -29,6 +30,12 @@ class LearningOutcome extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    /** Reverse traceability: which objectives derive from this outcome. */
+    public function objectiveLinks(): HasMany
+    {
+        return $this->hasMany(LearningObjectiveLearningOutcome::class);
     }
 
     private function resolveCurriculum(): ?Curriculum

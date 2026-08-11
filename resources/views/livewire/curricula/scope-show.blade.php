@@ -112,8 +112,164 @@
         @endforelse
     </div>
 
+
+    {{-- Learning objectives (TP). Authored while the curriculum is draft OR
+         active -- only an archived version closes the library. --}}
+    <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold text-slate-700">{{ $vocabulary['objectives'] }}</h2>
+            @if ($objectivesEditable)
+                @can('create', \App\Models\LearningObjective::class)
+                    <button type="button" wire:click="startAddingObjective" class="text-xs font-medium text-brand-navy hover:underline">+ Add</button>
+                @endcan
+            @endif
+        </div>
+        <p class="mb-3 text-xs text-slate-500">
+            Reference order below is for the library only &mdash; the teaching sequence is decided later by ATP.
+        </p>
+
+        @if ($showAddObjective || $editingObjectiveId)
+            <form wire:submit="saveObjective" class="mb-4 space-y-3 rounded-lg bg-slate-50 p-3">
+                @unless ($editingObjectiveId)
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Subject</label>
+                        <select wire:model="objective_subject_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                            <option value="">Select a subject&hellip;</option>
+                            @foreach ($subjects as $subject)
+                                <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('objective_subject_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        <p class="mt-1 text-xs text-slate-500">Fixed once saved &mdash; an objective in the wrong place is deleted and rewritten.</p>
+                    </div>
+                @endunless
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Code (optional)</label>
+                        <input type="text" wire:model="objective_code" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        @error('objective_code') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Title (optional)</label>
+                        <input type="text" wire:model="objective_title" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        @error('objective_title') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">{{ $vocabulary['objective'] }}</label>
+                    <textarea wire:model="objective_text" rows="4" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy"></textarea>
+                    @error('objective_text') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    <p class="mt-1 text-xs text-slate-500">State the competency expected and the content it applies to.</p>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Save Draft</button>
+                    <button type="button" wire:click="cancelObjective" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-white">Cancel</button>
+                </div>
+                @error('curriculum') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+            </form>
+        @endif
+
+        @forelse ($objectives as $subjectName => $group)
+            <div class="mb-4 last:mb-0">
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $subjectName }}</p>
+                <ul class="space-y-3">
+                    @foreach ($group as $objective)
+                        <li class="rounded-lg border border-slate-200 p-3">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="mb-0.5 flex flex-wrap items-center gap-2">
+                                        <span class="text-xs text-slate-400">#{{ $objective->reference_order }}</span>
+                                        @if ($objective->code)<span class="text-xs text-slate-500">{{ $objective->code }}</span>@endif
+                                        <x-status-badge :status="$objective->status" />
+                                    </div>
+                                    @if ($objective->title)
+                                        <p class="text-sm font-medium text-slate-900">{{ $objective->title }}</p>
+                                    @endif
+                                    <p class="whitespace-pre-line text-sm text-slate-700">{{ $objective->objective_text }}</p>
+
+                                    {{-- Traceability: which outcomes this derives from. --}}
+                                    <div class="mt-2">
+                                        @forelse ($objective->outcomeLinks as $link)
+                                            <span class="mb-1 mr-1 inline-block rounded bg-slate-50 px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200">
+                                                {{ $link->learningOutcome->code ?? Str::limit($link->learningOutcome->outcome_text, 40) }}
+                                                @if ($objective->isDraft() && $objectivesEditable)
+                                                    @can('update', $objective)
+                                                        <button type="button" wire:click="unlinkOutcome({{ $objective->id }}, {{ $link->learning_outcome_id }})"
+                                                            class="ml-1 text-red-500 hover:text-red-700">&times;</button>
+                                                    @endcan
+                                                @endif
+                                            </span>
+                                        @empty
+                                            <span class="text-xs text-amber-700">Not yet linked to any {{ $vocabulary['outcome'] }}.</span>
+                                        @endforelse
+                                    </div>
+                                </div>
+
+                                @if ($objectivesEditable)
+                                    <div class="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 text-xs">
+                                        @if ($objective->isDraft())
+                                            @can('update', $objective)
+                                                <button type="button" wire:click="moveObjective({{ $objective->id }}, 'up')" class="text-slate-400 hover:text-slate-700" title="Move up">&uarr;</button>
+                                                <button type="button" wire:click="moveObjective({{ $objective->id }}, 'down')" class="text-slate-400 hover:text-slate-700" title="Move down">&darr;</button>
+                                                <button type="button" wire:click="startLinking({{ $objective->id }})" class="font-medium text-brand-navy hover:underline">Link {{ $vocabulary['outcome'] }}</button>
+                                                <button type="button" wire:click="startEditingObjective({{ $objective->id }})" class="font-medium text-brand-navy hover:underline">Edit</button>
+                                                <button type="button" wire:click="deleteObjective({{ $objective->id }})"
+                                                    wire:confirm="Delete this draft objective?" class="text-red-500 hover:text-red-700">Delete</button>
+                                            @endcan
+                                            @can('transition', $objective)
+                                                <button type="button" wire:click="activateObjective({{ $objective->id }})"
+                                                    class="rounded-md bg-brand-navy px-3 py-1.5 font-medium text-white hover:bg-brand-navy-light">Activate</button>
+                                            @endcan
+                                        @elseif ($objective->isActive())
+                                            @can('transition', $objective)
+                                                <button type="button" wire:click="archiveObjective({{ $objective->id }})"
+                                                    wire:confirm="Archive this objective? It stays readable and stays attached to anything that used it."
+                                                    class="rounded-md border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-50">Archive</button>
+                                            @endcan
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+
+                            @if ($linkingObjectiveId === $objective->id)
+                                <form wire:submit="linkOutcome" class="mt-3 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+                                    <div class="min-w-0 flex-1">
+                                        <label class="mb-1 block text-xs font-medium text-slate-600">{{ $vocabulary['outcome'] }}</label>
+                                        <select wire:model="link_outcome_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                            <option value="">Select&hellip;</option>
+                                            @foreach ($linkableOutcomes as $outcome)
+                                                <option value="{{ $outcome->id }}">{{ $outcome->code ? $outcome->code.' — ' : '' }}{{ Str::limit($outcome->outcome_text, 60) }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Link</button>
+                                    <button type="button" wire:click="cancelObjective" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-white">Cancel</button>
+                                    @error('link_outcome_id') <p class="w-full text-xs text-red-600">{{ $message }}</p> @enderror
+                                    @if ($linkableOutcomes->isEmpty())
+                                        <p class="w-full text-xs text-amber-700">Every {{ $vocabulary['outcome'] }} in this scope and subject is already linked.</p>
+                                    @endif
+                                </form>
+                            @endif
+
+                            @error('status') @if ($editingObjectiveId === null) <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @endif @enderror
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @empty
+            <p class="text-sm text-slate-500">No {{ $vocabulary['objectives'] }} recorded yet.</p>
+        @endforelse
+
+        @error('learning_outcome_id') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+        @error('reference_order') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+        @error('code') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+    </div>
+
     <p class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        Learning objectives (TP) and ATP are not implemented yet, and curriculum standards are not
+        ATP is not implemented yet, and curriculum standards are not
         yet linked to teaching assignments.
     </p>
 </div>

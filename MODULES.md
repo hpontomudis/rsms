@@ -288,8 +288,8 @@ Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP →
 Proposed features:
 - **Curriculum:** name/code/description, `status` (draft/active/archived) — admin-managed, framework-level, not tied to one academic year
 - **Capaian Pembelajaran (CP):** linked to curriculum + subject + optional grade; admin-managed
-- **Tujuan Pembelajaran (TP):** linked to a CP, ordered via a `sequence` field; admin-managed
-- **Alur Tujuan Pembelajaran (ATP):** an ordered selection of TPs for a specific teaching assignment (`class_subject`), via header + `atp_items`; teacher-managed, scoped to their own assignment
+- **Tujuan Pembelajaran (TP):** implemented in Phase 5C — see below. *Corrected: an earlier draft said a TP is "linked to a CP" (one-to-many). It is many-to-many, because a TP often synthesises several CP elements.*
+- **Alur Tujuan Pembelajaran (ATP):** an ordered sequence of TP **within one curriculum scope and subject** (a learning phase, or an English level), via header + `atp_items`. *Corrected in Phase 5C: an earlier draft of this document said an ATP belonged directly to a teaching assignment (`class_subject`). It does not. A Phase C ATP spans Year 5 and Year 6, so it cannot be owned by one class's assignment; teaching assignments will SELECT an ATP, and several may use the same one.*
 - **Program Tahunan (Prota):** a thin publish/finalize wrapper around an ATP for a teaching assignment — deliberately has no items of its own, reuses the ATP's — teacher-managed
 - **Program Semester (Prosem):** semester-level plan (week-by-week items, free-text week labels rather than a rigid calendar) — teacher-managed
 - **Modul Ajar (Teaching Module):** the richest record — links to CP/TP/ATP/an actual Assessment (optional), planning narrative fields (materials, methods, activities, assessment strategy, reflection, differentiation) — only `title` and the teaching assignment are required, everything else optional
@@ -368,13 +368,43 @@ Together these make the database refuse a Primary English curriculum scoping to 
 
 **Content is immutable once the curriculum leaves draft.** A shared model guard refuses adding, changing or removing a scope or outcome whose curriculum is active or archived — for managers and principals too, since this is versioning rather than permission. A draft is fully editable. Superseding means a new curriculum version, whose scopes and outcomes are its own; the old version's standards stay exactly as they were. Archiving never deletes content.
 
+#### Learning Objectives / TP *(Phase 5C)*
+Status: Complete
+
+`Curriculum → Scope → Learning Outcome ↔ Learning Objective`. On the national curriculum a row is a **Tujuan Pembelajaran (TP)**; on a Rahai English curriculum it is a **Learning Objective**. One table, wording derived from the curriculum — there is no `english_learning_objectives`.
+
+**Anchored to a curriculum scope and subject**, never to a grade, class, teaching group or academic year. A Phase C objective serves Year 5 and Year 6 alike; which grade works on which part is a teaching decision ATP will make later. The anchor is **immutable from creation**, even on a draft: an objective in the wrong place is deleted and rewritten, so the composite keys that bind its CP links stay simple and historical meaning never migrates between standards.
+
+**CP links are many-to-many.** A TP may synthesise several CP elements, and one CP may inform several TP — traceability reads correctly in both directions. Enforced by two composite foreign keys through a mirrored anchor on the link table:
+- `(learning_objective_id, curriculum_scope_id, subject_id) → learning_objectives`
+- `(learning_outcome_id, curriculum_scope_id, subject_id) → learning_outcomes`
+
+All three columns are NOT NULL, so unlike the Phase 5B discriminator there is **no residual application-level gap**: the database itself refuses a Phase C Mathematics TP linked to a Phase D outcome, to a Phase C English outcome, or to a Primary English Green outcome — including when the mirrored anchor is falsified to try to force it through.
+
+**TP has its own lifecycle**, unlike CP:
+
+| | Draft | Active | Archived |
+|---|---|---|---|
+| Content, code, title, reference order | editable | frozen | frozen |
+| CP links | editable | frozen | frozen |
+| Anchor | immutable | immutable | immutable |
+| Deletion | allowed if unused | archive instead | never |
+
+CP had no authoring lifecycle of its own — it inherited the curriculum's. TP genuinely does, because the school formulates and revises objectives *while a curriculum is in force*.
+
+**Curriculum lifecycle interaction:** a draft TP may be created under a **draft or active** curriculum, but may only be **activated** under an active one, and nothing may be created or changed under an **archived** curriculum. Archiving a curriculum does not rewrite TP status — historical status stays factual.
+
+**Activation is gated** and runs in a transaction: the curriculum must be active, the statement must be present, **at least one CP link must exist**, every link must still match the anchor, and no other *active* objective may hold the same reference order or code.
+
+**Reference order is not teaching order.** `reference_order` orders the library for reading; ATP will own instructional sequence and may select a subset in a different order. Uniqueness on reference order and code applies to the **active** library only, so a draft replacement may deliberately carry its predecessor's number and code while it is prepared — that is the revision workflow: prepare draft → archive the old → activate the replacement. Anything that already referenced the old TP keeps referencing it.
+
 **Not implemented yet, deliberately:**
-- **Tujuan Pembelajaran (Learning Objectives).** Derived from CP.
+- ATP. Contract above.
 - **ATP.** An *ordered sequence of TP within a Learning Phase*, not a list of daily lesson objectives. It must support one phase spanning several grades, so teaching can later allocate parts of an ATP across Year 5 and Year 6 and across academic years without changing the CP's phase identity.
 - Prota, Prosem, Teaching Modules, Daily Journals.
 - Kindergarten developmental assessment and reporting.
 
-Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes or outcomes. Standards and teaching execution stay separate layers until TP/ATP connect them. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
+Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes, outcomes or objectives. Standards and teaching execution stay separate layers until TP/ATP connect them. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
 
 ---
 

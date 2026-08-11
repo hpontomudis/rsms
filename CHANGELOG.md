@@ -4,6 +4,44 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 5C: Learning Objectives (TP)
+
+### Added
+- **`learning_objectives`** - Tujuan Pembelajaran on the national curriculum, Learning Objective on a Rahai English one. One table, wording derived from the curriculum. Anchored to a curriculum scope and subject; no grade_id, class_subject_id, teaching_group_id or academic_year_id.
+- **`learning_objective_learning_outcome`** - a real Eloquent model, not a Laravel pivot, so link changes are audited. CP traceability is many-to-many: a TP may synthesise several CP elements and a CP may inform several TP.
+- **`LearningObjectiveService`** - authoring workflow and the activation gate.
+- TP management on the curriculum scope screen: create, edit, link/unlink CP, reorder, activate, archive, delete drafts.
+
+### Integrity
+- Two composite foreign keys through a mirrored anchor on the link table force both sides to share a curriculum scope and subject. All three columns are NOT NULL, so unlike the Phase 5B discriminator there is **no residual application-level gap**.
+- Verified against PostgreSQL by attempting each path directly in SQL: Phase C TP -> Phase D CP, Phase C Maths TP -> Phase C English CP, national TP -> Primary English Green outcome, a falsified mirrored anchor, and a duplicate link. All five refused.
+
+### Lifecycle
+- TP carries its own draft/active/archived, unlike CP which inherits the curriculum's. Educators formulate and revise objectives while a curriculum is in force; requiring every TP before activation would have made activation punitive and pushed curricula to stay in draft forever.
+- Draft TP may be created under a draft OR active curriculum; activation requires an ACTIVE curriculum; nothing may be created or changed under an archived one. Archiving a curriculum does not rewrite TP status - historical status stays factual.
+- **The anchor is immutable from creation**, not merely after activation. An objective in the wrong scope or subject is deleted and rewritten.
+- Activation is transactional and gated on six checks: active curriculum, statement present, at least one CP link, every link still matching the anchor, no active reference-order conflict, no active code conflict.
+
+### Reference order is not teaching order
+- The column is called `reference_order`, not `sequence`, and orders the library for reading only. ATP will own instructional sequence.
+- Uniqueness on reference order and code applies to the ACTIVE library only, so a draft replacement may deliberately carry its predecessor's number and code while being prepared. The revision workflow is: prepare draft -> archive the old -> activate the replacement. Nothing that already referenced the old TP is rewritten.
+
+### Fixed
+- **Stale ATP documentation corrected.** An earlier draft said an ATP is "an ordered selection of TPs for a specific teaching assignment (class_subject)" and that a TP is "linked to a CP". Neither holds: a Phase C ATP spans Year 5 and Year 6 so it cannot be owned by one class's assignment, and CP-TP is many-to-many. Both entries now say so explicitly.
+- A model guard bug caught by its own tests: `isDirty([])` means "is anything dirty" and returns true, so a status-only change looked like a content edit and archiving was impossible.
+
+### Not implemented
+- ATP, Prota, Prosem, Teaching Modules, Daily Journals.
+- Teacher authorship of the canonical TP library. Teachers remain read-only; their collaborative work belongs in ATP, which is per-phase and cross-grade. Revisit when ATP collaboration is designed.
+
+### Tests
+- New `LearningObjectiveTest` (45 tests): anchor immutability, the absence of teaching columns, many-to-many in both directions, four database-level rejection paths plus a falsified anchor, draft editability and zero-link drafts, all six activation gates, active/archived freezes, revision coexistence and conflict rejection, curriculum-lifecycle interaction, vocabulary, authorization, audit including proof that `attach()` records nothing, and delete safety. Suite: 323 to 368 passing.
+
+### Verification practice
+- Phase 5C was verified in an isolated `rahai_sms_verify` database per the convention recorded after Phase 5B. The development database was not touched at all, and no lifecycle guard was bypassed for cleanup.
+
+---
+
 ## 2026-08-12 - Phase 5B: Curriculum Scopes & Learning Outcomes
 
 ### Added
