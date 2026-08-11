@@ -39,4 +39,20 @@ class Grade extends Model
     {
         return $this->englishProgrammeLink?->programme;
     }
+
+    /**
+     * At most one learning phase applies to a grade (enforced by
+     * UNIQUE(grade_id) on the mapping). Grades outside any phase simply have
+     * no row -- the grade table itself stays neutral about curricular
+     * frameworks.
+     */
+    public function learningPhaseLink(): HasOne
+    {
+        return $this->hasOne(LearningPhaseGrade::class);
+    }
+
+    public function learningPhase(): ?LearningPhase
+    {
+        return $this->learningPhaseLink?->learningPhase;
+    }
 }

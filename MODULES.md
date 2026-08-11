@@ -310,6 +310,48 @@ Full table list, relationship rationale, and delete-safety rules: see the Phase 
 
 ---
 
+### Curriculum & Learning Phase foundation *(Phase 5A)*
+Status: Complete — **reference layer only**
+
+The versioned curriculum registry and the national Learning Phase structure that curriculum work will hang off. Nothing that defines actual learning content exists yet.
+
+**Learning phases** (`/learning-phases`) — seeded reference data, not application constants, so a ministry adjustment is a data correction rather than a redeploy:
+
+| Phase | Code | Grades |
+|---|---|---|
+| Foundation | `FOUNDATION` | Kindergarten 1, Kindergarten 2 |
+| Phase A | `A` | Year 1, Year 2 |
+| Phase B | `B` | Year 3, Year 4 |
+| Phase C | `C` | Year 5, Year 6 |
+| Phase D | `D` | Year 7, Year 8, Year 9 |
+| Phase E | `E` | Year 10 |
+| Phase F | `F` | Year 11, Year 12 |
+
+Grades are mapped through `learning_phase_grade`, never a `learning_phase_id` column on `grades` — the grade table describes what a grade *is*, not which curricular frameworks classify it, the same separation used for English programme applicability. `UNIQUE(grade_id)` enforces one phase per grade at the database level. The reference page allows editing a phase's description and status; codes, sequences and grade mappings are national structure and are not editable.
+
+**Curricula** (`/curricula`) — a versioned registry where a *version* is a first-class historical record:
+- identity is `code` + `version` (`UNIQUE`), never `name`. Names are presentation and may be corrected
+- `english_programme_id` binds a curriculum to a Rahai English programme, or is NULL for the national phase-based curriculum. No curriculum-type enum: the only distinction the school actually has today is "bound to an English programme or not"
+- effective dates belong to the version, not to an academic year — a version may span several. `effective_to >= effective_from` is enforced on the model, not just the form
+- **at most one active version per family**, enforced by a partial unique index on `code WHERE status = 'active'` (identical syntax on PostgreSQL and SQLite). `NATIONAL` and `PRI-ENG` may both be active; two `NATIONAL` versions may not
+- superseding is archive-and-create: activating a draft archives the outgoing version and closes it the day before the successor starts. The old row is kept
+- a version's identity (`code`, `version`, `english_programme_id`) is **immutable once it leaves draft** — records point at it, and rewriting those fields would retroactively change what they were taught against. A never-used draft stays fully editable
+- nothing is seeded. A curriculum version records a real school decision; inventing a version label and an effective date to make the table non-empty would be fabricating one
+
+**Kindergarten note:** mapping Kindergarten 1/2 to the Foundation phase is a *curriculum reference* relationship only. It does **not** mean Kindergarten uses the numeric assessment/report-card model. Nothing in `Assessment`, `assessment_results` or `ReportCard` was changed for Kindergarten; developmental assessment and reporting remain separate future work.
+
+**Not implemented yet, deliberately:**
+- **Curriculum Scopes.** The contract for the next step: a scope has exactly one basis — a Learning Phase for the national curriculum, an English Level for a Rahai English curriculum. When it is built, the database/application must prevent a Primary English curriculum scoping to Junior High Level B and vice versa: the curriculum's `english_programme_id` must agree with the level's. UI filtering alone will not be sufficient.
+- **Capaian Pembelajaran (Learning Outcomes).** They will reference a **Learning Phase, never a grade** — Phase C has one set of outcomes covering Year 5 and Year 6, and grades resolve through the mapping. There must never be a `learning_outcomes.grade_id`.
+- **Tujuan Pembelajaran (Learning Objectives).** Derived from CP.
+- **ATP.** An *ordered sequence of TP within a Learning Phase*, not a list of daily lesson objectives. It must support one phase spanning several grades, so teaching can later allocate parts of an ATP across Year 5 and Year 6 and across academic years without changing the CP's phase identity.
+- Prota, Prosem, Teaching Modules, Daily Journals.
+- Kindergarten developmental assessment and reporting.
+
+Terminology for later UI: on the national curriculum, Learning Outcome = CP and Learning Objective = TP; on a Rahai English programme they are English Learning Outcome / English Learning Objective. Same tables, different labels.
+
+---
+
 ## V6 — Document Generation
 
 Status: Not started (not scoped — deliberately deferred until V5 exists and is stable)

@@ -4,6 +4,37 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-11 - Phase 5A: Curriculum & Learning Phase foundation
+
+### Added
+- **`learning_phases`** - the national phase structure as seeded reference DATA, not application constants: FOUNDATION, A, B, C, D, E, F. Unique on both code and sequence.
+- **`learning_phase_grade`** - which grades sit in which phase, with `UNIQUE(grade_id)`. Foundation -> Kindergarten 1/2, A -> Year 1-2, B -> Year 3-4, C -> Year 5-6, D -> Year 7-9, E -> Year 10, F -> Year 11-12. Existing grade rows are reused; the seeder throws if an expected grade is missing rather than seeding a half-mapped phase.
+- **`curricula`** - a versioned registry. Identity is `code` + `version` (UNIQUE), not `name`. Optional `english_programme_id` binds a curriculum to a Rahai English programme; NULL means the national, phase-based curriculum. `source_reference` is free-text provenance - no URL requirement, no document storage.
+- Management UI: `/learning-phases` (reference view; description and status editable) and `/curricula` (list grouped by family, create, show, edit, activate, archive).
+
+### Database
+- Partial unique index on `curricula (code) WHERE status = 'active'` - at most one active version per family. NATIONAL and PRI-ENG may both be active; two NATIONAL versions may not. Identical syntax on PostgreSQL and SQLite, so it is a real constraint rather than a service-level hope.
+- RESTRICT throughout: a phase with mappings cannot be deleted, a mapped grade cannot be deleted, an English programme bound to a curriculum cannot be deleted.
+
+### Version lifecycle
+- Superseding is **archive-and-create**. Activating a draft archives the outgoing active version of the same family and closes it the day before the successor starts; the old row is kept.
+- A version's identity (`code`, `version`, `english_programme_id`) is **immutable once it leaves draft** - a model guard throws. A never-used draft stays fully editable, so a typo can still be corrected. Name, description, source reference and effective dates remain editable after activation.
+- `effective_to >= effective_from` is enforced on the model, not only in the form. Curriculum dates are the version's own; there is deliberately no `academic_year_id`, since a version may span several years.
+
+### Not seeded, deliberately
+- **No curriculum row is seeded.** A version records a real school decision; inventing a version label, an effective date or a regulation reference to make the table non-empty would be fabricating one. Learning phases ARE seeded, because that structure is approved national reference data.
+
+### Kindergarten
+- Mapping Kindergarten 1/2 to the Foundation phase is a curriculum reference relationship only. Nothing in `Assessment`, `assessment_results` or `ReportCard` was changed for Kindergarten; developmental assessment and reporting remain separate future work.
+
+### Not implemented yet
+- Curriculum Scopes, CP (Learning Outcomes), TP (Learning Objectives), ATP, Prota, Prosem, Teaching Modules, Daily Journals. The contracts for the first three are recorded in MODULES.md - in particular that CP will reference a Learning Phase and never a grade, and that a scope's English level must agree with its curriculum's English programme.
+
+### Tests
+- New `CurriculumFoundationTest` (40 tests): phase seeding and per-phase grade mapping, uniqueness, idempotency, delete safety, curriculum creation and version identity, the one-active-version rule, both English bindings and the NULL case, date validation, the draft/post-draft lifecycle split, authorization for admin/principal/teacher, and audit - including a re-verification that `attach()` on the phase-grade mapping records nothing, which is why writes go through the model. Suite: 234 to 274 passing.
+
+---
+
 ## 2026-08-11 - Phase 5 Step 2e
 
 ### Added

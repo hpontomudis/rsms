@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             AcademicPeriodSeeder::class,
             // Must follow GradeSeeder -- programme applicability references grades.
             EnglishProgrammeSeeder::class,
+            LearningPhaseSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

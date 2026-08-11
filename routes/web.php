@@ -5,11 +5,13 @@ use App\Livewire\Assessments;
 use App\Livewire\Attendance;
 use App\Livewire\Auth\Login;
 use App\Livewire\Classes;
+use App\Livewire\Curricula;
 use App\Livewire\Dashboard;
 use App\Livewire\EnglishProgrammes;
 use App\Livewire\FeeStructures;
 use App\Livewire\Guardians;
 use App\Livewire\Invoices;
+use App\Livewire\LearningPhases;
 use App\Livewire\Staff;
 use App\Livewire\Students;
 use App\Livewire\Subjects;
@@ -84,6 +86,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/', Invoices\Index::class)->name('index');
         Route::get('/create', Invoices\Create::class)->name('create');
         Route::get('/{invoice}', Invoices\Show::class)->name('show');
+    });
+
+    Route::get('/learning-phases', LearningPhases\Index::class)->name('learning-phases');
+
+    Route::prefix('curricula')->name('curricula.')->group(function () {
+        Route::get('/', Curricula\Index::class)->name('index');
+        Route::get('/create', Curricula\Create::class)->name('create');
+        Route::get('/{curriculum}', Curricula\Show::class)->name('show');
+        Route::get('/{curriculum}/edit', Curricula\Edit::class)->name('edit');
     });
 
     Route::prefix('english-programmes')->name('english-programmes.')->group(function () {
