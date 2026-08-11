@@ -43,6 +43,10 @@
 - **No parent portal.** The `parent` role and the `student_guardian` relationship it would be scoped through both exist, but no login/UI has been built for it.
 - **Not deployed.** Everything so far has been built and verified against a local dev environment (PHP 8.4, PostgreSQL 17, `php artisan serve`) — no staging/production hosting exists yet.
 
+## Development Conventions
+
+- **Verify lifecycle-protected curriculum data in an isolated database, not the dev one.** Manual verification that has to activate or archive a curriculum leaves rows the lifecycle guard correctly refuses to delete. Cleaning those up with direct SQL worked once, but it must not become the routine: bypassing a guard for tidiness is how a guard stops being trusted. Use a throwaway verification database (the `rahai_sms_verify` pattern already used for fresh-install checks) whenever the verification itself needs to leave draft.
+
 ## Technical Debt
 
 - **`class_student` has no effective dating and no guard against a student holding two `active` rows in one academic year.** Discovered during Step 2a-ii. Nothing was changed in Phase 1; instead `StudentGradeResolver` refuses to resolve a grade when the active classes disagree, and blocks the English operation with a clear message rather than picking one. A future Foundation integrity pass should decide whether `class_student` becomes effective-dated like `class_subject` and `teaching_group_student`, or gains a partial unique index over active rows.
