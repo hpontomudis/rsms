@@ -4,6 +4,40 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 5B: Curriculum Scopes & Learning Outcomes
+
+### Added
+- **`curriculum_scopes`** - what a curriculum version says something about. Exactly one basis: a Learning Phase (national) or an English Level (Rahai English), enforced by a CHECK constraint.
+- **`learning_outcomes`** - ONE table for both frameworks. A row is a Capaian Pembelajaran on the national curriculum and an English Learning Outcome on a Rahai English one; the wording is derived from the curriculum, the structure is identical. No national_cp / english_outcomes split to keep in sync.
+- **`CurriculumScopeService`** - every scope is created through it, so the UI, the tests and any future import share one set of rules.
+- Scope management on the curriculum screen, and a scope screen for outcomes: add, edit, reorder within a subject, remove - all while the curriculum is a draft.
+
+### Cross-programme integrity
+- `curriculum_scopes` carries an `english_programme_id` discriminator - the one piece of deliberate duplication - so two composite foreign keys can compare across tables a single-column constraint cannot reach:
+  `(curriculum_id, english_programme_id) -> curricula` and `(english_level_id, english_programme_id) -> english_levels`.
+- The database therefore refuses a Primary English curriculum scoping to Junior High Level B, refuses an English level on a national curriculum, and refuses a falsified discriminator used to sneak either past. All three verified directly against PostgreSQL and covered by SQLite tests.
+- **One direction stays application-level**: an English-bound curriculum taking a learning-phase scope. A phase scope legitimately carries a NULL discriminator, and MATCH SIMPLE skips a composite key whenever any column is NULL, so no portable constraint can see it. `CurriculumScopeService` refuses it. Closing it in SQL would need a sentinel "no programme" row - inventing data to satisfy a constraint.
+
+### Design decisions
+- **Outcomes are ordered, not one-per-subject.** `UNIQUE(scope, subject, sequence)` rather than `UNIQUE(scope, subject)`: an official CP is often broken into elements, so Phase C -> Mathematics may hold several outcomes. A `code`, where used, is unique within its scope via a partial index.
+- **No `grade_id` on an outcome**, permanently. Phase C covers Year 5 and Year 6 with one outcome set; grades are derived through `learning_phase_grade` for display only.
+- **No `status` on an outcome.** The curriculum already carries draft/active/archived and outcomes are immutable after activation; a second lifecycle would only create a way to mutate a published standard. The smaller model is the correct one here.
+- `outcome_text` is TEXT - official CP narratives are paragraphs, and a long narrative round-trips intact in test.
+
+### Lifecycle
+- A shared `BelongsToDraftCurriculum` guard refuses adding, changing or removing a scope or outcome once its curriculum leaves draft - including for principals, because this is versioning rather than permission. Drafts remain fully editable.
+- Archiving never deletes content. A new version carries its own scopes and outcomes; the old version's standards stay exactly as they were.
+
+### Not implemented
+- TP (Learning Objectives), ATP, Prota, Prosem, Teaching Modules, Daily Journals.
+- Curriculum standards are NOT linked to `class_subject`. Standards and teaching execution remain separate layers.
+- English learning outcomes describe expected competency and never move a student between levels; proficiency placement stays its own workflow.
+
+### Tests
+- New `CurriculumScopeTest` (49 tests): scope basis rules in both directions, database-level integrity including two bypass attempts, scope uniqueness per version, outcomes and ordering, the no-grade-column rule, long-narrative persistence, draft editability, activation immutability across text/subject/reorder/delete/scope-repointing, archived retention, delete safety, vocabulary, selector filtering, authorization and audit. Suite: 274 to 323 passing.
+
+---
+
 ## 2026-08-11 - Phase 5A: Curriculum & Learning Phase foundation
 
 ### Added

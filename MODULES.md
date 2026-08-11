@@ -340,15 +340,41 @@ Grades are mapped through `learning_phase_grade`, never a `learning_phase_id` co
 
 **Kindergarten note:** mapping Kindergarten 1/2 to the Foundation phase is a *curriculum reference* relationship only. It does **not** mean Kindergarten uses the numeric assessment/report-card model. Nothing in `Assessment`, `assessment_results` or `ReportCard` was changed for Kindergarten; developmental assessment and reporting remain separate future work.
 
+#### Curriculum Scopes & Learning Outcomes *(Phase 5B)*
+Status: Complete
+
+`Curriculum → Curriculum Scope → Learning Outcome`. One engine serves both frameworks:
+
+| | National curriculum | Rahai English curriculum |
+|---|---|---|
+| Scope basis | Learning Phase | English Level |
+| UI wording | *Fase*, *Capaian Pembelajaran (CP)* | *Level*, *Learning Outcome* |
+
+There is no `national_cp` / `english_outcomes` split — same tables, wording derived from the curriculum's `english_programme_id`.
+
+**A scope has exactly one basis**, enforced by a CHECK constraint: a learning phase XOR an English level, never both and never neither.
+
+**Cross-programme integrity is enforced by the database.** `curriculum_scopes` carries an `english_programme_id` discriminator — the one piece of deliberate duplication here — so two composite foreign keys can compare across tables that SQL otherwise cannot join in a constraint:
+- `(curriculum_id, english_programme_id) → curricula (id, english_programme_id)`
+- `(english_level_id, english_programme_id) → english_levels (id, english_programme_id)`
+
+Together these make the database refuse a Primary English curriculum scoping to Junior High Level B, refuse an English level on a national curriculum, and refuse a falsified discriminator used to sneak either past. Verified on PostgreSQL and SQLite. **One direction remains application-level**: an English-bound curriculum taking a *learning phase* scope. A phase scope legitimately carries a NULL discriminator, and SQL's MATCH SIMPLE semantics skip a composite key whenever any column is NULL, so no constraint can see it — `CurriculumScopeService` refuses it instead.
+
+**Outcomes are ordered, not one-per-subject.** `UNIQUE(scope, subject, sequence)` rather than `UNIQUE(scope, subject)`, because an official CP is often broken into elements: Phase C → Mathematics → outcome 1, outcome 2. A `code`, where used, is unique within its scope (partial index).
+
+**No `grade_id` on an outcome, permanently.** Phase C covers Year 5 and Year 6 with one outcome set; the grades are derived through `learning_phase_grade` for display only.
+
+**No `status` on an outcome either.** The curriculum already carries draft/active/archived, and a second lifecycle would only create a way to mutate a published standard. `outcome_text` is TEXT — official CP narratives are paragraphs.
+
+**Content is immutable once the curriculum leaves draft.** A shared model guard refuses adding, changing or removing a scope or outcome whose curriculum is active or archived — for managers and principals too, since this is versioning rather than permission. A draft is fully editable. Superseding means a new curriculum version, whose scopes and outcomes are its own; the old version's standards stay exactly as they were. Archiving never deletes content.
+
 **Not implemented yet, deliberately:**
-- **Curriculum Scopes.** The contract for the next step: a scope has exactly one basis — a Learning Phase for the national curriculum, an English Level for a Rahai English curriculum. When it is built, the database/application must prevent a Primary English curriculum scoping to Junior High Level B and vice versa: the curriculum's `english_programme_id` must agree with the level's. UI filtering alone will not be sufficient.
-- **Capaian Pembelajaran (Learning Outcomes).** They will reference a **Learning Phase, never a grade** — Phase C has one set of outcomes covering Year 5 and Year 6, and grades resolve through the mapping. There must never be a `learning_outcomes.grade_id`.
 - **Tujuan Pembelajaran (Learning Objectives).** Derived from CP.
 - **ATP.** An *ordered sequence of TP within a Learning Phase*, not a list of daily lesson objectives. It must support one phase spanning several grades, so teaching can later allocate parts of an ATP across Year 5 and Year 6 and across academic years without changing the CP's phase identity.
 - Prota, Prosem, Teaching Modules, Daily Journals.
 - Kindergarten developmental assessment and reporting.
 
-Terminology for later UI: on the national curriculum, Learning Outcome = CP and Learning Objective = TP; on a Rahai English programme they are English Learning Outcome / English Learning Objective. Same tables, different labels.
+Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes or outcomes. Standards and teaching execution stay separate layers until TP/ATP connect them. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
 
 ---
 

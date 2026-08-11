@@ -1,7 +1,7 @@
 # Project Status
 
-**Current Version:** V5.1 — Phase 5 **Steps 0-2e complete**, plus **Phase 5A (Curriculum & Learning Phase foundation)**; CP/TP/ATP and the planning entities not started
-**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration), 2d (report-card discovery) 2e (teacher workspace) and Phase 5A (curriculum registry + learning phases) are implemented, tested, and verified.** Curriculum Scopes, CP, TP, ATP, Prota, Prosem, Teaching Modules and Daily Journals are approved in design but **not started** — awaiting explicit go-ahead.
+**Current Version:** V5.2 — Phase 5 **Steps 0-2e complete**, plus **Phase 5A (Curriculum foundation)** and **Phase 5B (Curriculum Scopes + CP)**; TP/ATP and the remaining planning entities not started
+**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration), 2d (report-card discovery) 2e (teacher workspace) Phase 5A (curriculum registry + learning phases) and Phase 5B (curriculum scopes + learning outcomes) are implemented, tested, and verified.** TP, ATP, Prota, Prosem, Teaching Modules and Daily Journals are approved in design but **not started** — awaiting explicit go-ahead.
 **Last verified:** 2026-08-10 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
@@ -17,18 +17,19 @@
 - **Staff position type-to-add (V4.2):** free-type-or-pick position field; added Support Staff / Building Staff to defaults
 - **English Programmes (V4.5 / Phase 5 Step 2a-i):** proficiency frameworks (Primary colour levels, Junior High Level A/B/C) with per-programme level ordering, archive-not-delete levels, and grade applicability
 - **Teaching Assignments for groups (V4.8–V5.0-pre / Phase 5 Steps 2b + 2c + 2d):** `class_subject` extended so an assignment is backed by an administrative class **or** a teaching group, with Step 0 close-and-create handover; and unified roster/year/display accessors so the existing assessment engine serves both identically; and report-card discovery across both roster sources, merged by subject.
+- **Curriculum Scopes & Learning Outcomes (V5.2 / Phase 5B):** `Curriculum → Scope → Learning Outcome`, one engine for national CP (scoped by Learning Phase) and Rahai English outcomes (scoped by English Level). Cross-programme scoping refused by the database; content immutable once a version leaves draft.
 - **Curriculum & Learning Phase foundation (V5.1 / Phase 5A):** seven seeded national learning phases mapped to grades (Foundation → Kindergarten 1-2, A → Year 1-2, B → Year 3-4, C → Year 5-6, D → Year 7-9, E → Year 10, F → Year 11-12), and a versioned curriculum registry with archive-and-create version lifecycle. Reference layer only — no CP, TP or scopes.
 - **Teacher Workspace (V5.0-pre / Phase 5 Step 2e):** `/my-teaching` — a teacher's own classes and teaching groups in one list, active and historical, with Assessments as the single available action. Closes the Step 2c navigation gap without widening any policy.
 - **Teaching Groups & English Placement (V4.6 / Phase 5 Step 2a-ii):** year-scoped groups (English or generic), effective-dated membership with rejoin history, and per-student assessed proficiency kept deliberately independent of which group they attend
 
 ## In Progress
 
-- **Phase 5 Steps 0-2e and Phase 5A are complete.** Nothing else is in progress; Curriculum Scopes onward await approval.
+- **Phase 5 Steps 0-2e, Phase 5A and Phase 5B are complete.** Nothing else is in progress; TP (Learning Objectives) onward awaits approval.
 
 ## Next (pending user instruction)
 
 - Teacher scoping through teaching groups (`StudentPolicy`), deferred until a teaching assignment can authorize it.
-- Phase 5B onward: Curriculum Scopes → CP (Learning Outcomes, per Learning Phase) → TP (Learning Objectives) → ATP → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
+- Phase 5C onward: TP (Learning Objectives, derived from CP) → ATP → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
 - Kindergarten developmental assessment and reporting — deliberately separate from the numeric assessment model.
 - Later cleanup migration: drop the deprecated `assessments.term` column once the new architecture has proven stable.
 - The "successor teacher can read predecessor planning" test is deliberately deferred to the ATP step, since no Phase 5 planning entity exists yet to test against.
@@ -51,6 +52,8 @@
 ## Important Architectural Decisions
 
 - **`class_subject` is the single Teaching Assignment store.** One row = one subject + one roster + one teacher + a date range, where the roster is an administrative class XOR a teaching group. No parallel `teaching_group_subject` table, and no rename of the physical table — `assessments.class_subject_id` and every other reference keep working, and the domain concept lives in the model's documentation rather than in churn.
+- **Published curriculum content is immutable; a change means a new version.** A shared model guard refuses edits to scopes and outcomes once their curriculum leaves draft — for managers too, because this is versioning rather than a permission question. Drafts stay fully editable.
+- **Cross-table integrity is bought with one deliberate discriminator, not with triggers.** `curriculum_scopes.english_programme_id` exists so composite foreign keys can enforce that an English level belongs to the same programme as its curriculum — something no single-column constraint can express. The one direction NULL semantics leave uncoverable is stated as an application-level rule rather than assumed away.
 - **A curriculum VERSION is a historical record, never a row that gets overwritten.** Identity is `code` + `version` and becomes immutable the moment a version leaves draft; superseding archives the old version and opens a new one. Work recorded under the 2025 standards must keep pointing at the 2025 standards.
 - **Learning outcomes will belong to a Learning Phase, never to a grade.** Phase C covers Year 5 and Year 6 with one set of outcomes; grades resolve through `learning_phase_grade`. This is why phases are a table rather than an enum, and why `grades` carries no phase column.
 - **A signed-in user is resolved to staff explicitly, never through the `HasOne`.** `staff.user_id` has no unique index, so `User::staff()` would silently pick one of several. Anything showing "my" work resolves candidates itself and refuses on zero or many, because guessing here means showing one teacher another teacher's students.
@@ -75,14 +78,14 @@
 ## Database Status
 
 - PostgreSQL 17, local dev instance (`rahai_sms` database).
-- 43 migrations, all applied cleanly; verified both as an in-place upgrade of the dev database and as a from-scratch migrate + seed on an isolated throwaway database (`rahai_sms_verify`, since dropped).
+- 45 migrations, all applied cleanly; verified both as an in-place upgrade of the dev database and as a from-scratch migrate + seed on an isolated throwaway database (`rahai_sms_verify`, since dropped).
 - Soft-deletes on: `students`, `guardians`, `staff`.
-- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `Curriculum`, `LearningPhase`, `LearningPhaseGrade`.
+- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `Curriculum`, `LearningPhase`, `LearningPhaseGrade`, `CurriculumScope`, `LearningOutcome`.
 
 ## Testing Status
 
-- **274/274 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
-- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), plus 1 baseline routing test.
+- **323/323 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
+- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), curriculum scopes & outcomes (49), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), curriculum scopes & outcomes (49), plus 1 baseline routing test.
 - Tests focus on business rules and authorization scoping (e.g. "a teacher cannot record attendance for a class they don't teach," "an invoice's items lock once a payment exists") rather than exhaustive UI coverage.
 - Every module has also been manually verified end-to-end in-browser (desktop + mobile viewports, across at least two roles) before being marked complete.
 

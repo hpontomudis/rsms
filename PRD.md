@@ -6,7 +6,7 @@
 | Organization | Yayasan Pendidikan Halmahera Membangun Bangsa |
 | Location | North Halmahera, Indonesia |
 | Document type | Living master blueprint — update only for material changes (see rule at bottom) |
-| Last updated | 2026-08-11 (V5.1 built — Phase 5 Steps 0-2e plus Phase 5A curriculum foundation; V5 planning entities approved, not started) |
+| Last updated | 2026-08-12 (V5.2 built — Phase 5 Steps 0-2e plus Phase 5A/5B curriculum layer; V5 planning entities approved, not started) |
 
 ---
 
@@ -71,7 +71,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Attendance | V2 | Complete |
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
-| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0-2e and Phase 5A built; Curriculum Scopes, CP, TP, ATP and teacher student-scoping not yet connected; the planning entities themselves not started |
+| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0-2e, Phase 5A and Phase 5B built; TP, ATP and teacher student-scoping not yet connected; the planning entities themselves not started |
 | Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
 | Communication | V7 | Planned |
 | AI-assisted reporting | V8 | Planned |
@@ -136,7 +136,8 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V4.9 | Phase 5 Step 2c — unified roster accessors; teaching groups assessable through the existing assessment engine | Complete |
 | V5.0-pre | Phase 5 Step 2d — report-card discovery across classes and teaching groups, merged by subject | Complete |
 | V5.0-pre | Phase 5 Step 2e — Teacher Workspace (My Teaching Assignments) | Complete |
-| V5.1 | Phase 5A — Curriculum registry + Learning Phase reference layer | Complete (current build) |
+| V5.1 | Phase 5A — Curriculum registry + Learning Phase reference layer | Complete |
+| V5.2 | Phase 5B — Curriculum Scopes + Learning Outcomes (CP) | Complete (current build) |
 | V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
 | V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
 | V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |

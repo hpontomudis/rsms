@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use InvalidArgumentException;
 use LogicException;
 
@@ -83,6 +84,26 @@ class Curriculum extends Model
     public function englishProgramme(): BelongsTo
     {
         return $this->belongsTo(EnglishProgramme::class);
+    }
+
+    public function scopes(): HasMany
+    {
+        return $this->hasMany(CurriculumScope::class);
+    }
+
+    /**
+     * What this version's scopes and outcomes are CALLED. The national
+     * framework's terms are Capaian Pembelajaran and Fase; a Rahai English
+     * curriculum uses neutral wording rather than borrowing a government term
+     * for a school's own framework. Same tables either way.
+     *
+     * @return array{outcome: string, outcomes: string, basis: string, bases: string}
+     */
+    public function vocabulary(): array
+    {
+        return $this->isEnglishProgrammeBound()
+            ? ['outcome' => 'Learning Outcome', 'outcomes' => 'Learning Outcomes', 'basis' => 'Level', 'bases' => 'Levels']
+            : ['outcome' => 'Capaian Pembelajaran (CP)', 'outcomes' => 'Capaian Pembelajaran (CP)', 'basis' => 'Fase', 'bases' => 'Learning Phases'];
     }
 
     public function isEnglishProgrammeBound(): bool
