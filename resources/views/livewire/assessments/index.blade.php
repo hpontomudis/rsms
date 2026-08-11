@@ -1,5 +1,5 @@
 <div class="mx-auto max-w-2xl space-y-4">
-    <a href="{{ $classSubject->rosterUrl() }}" class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $classSubject->displayName() }}</a>
+    <a href="{{ $backUrl }}" class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $backLabel }}</a>
 
     <div class="flex flex-col gap-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-start sm:justify-between">
         <div>

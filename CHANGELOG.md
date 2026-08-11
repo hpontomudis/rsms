@@ -4,6 +4,35 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-11 - Phase 5 Step 2e
+
+### Added
+- **Teacher Workspace at `/my-teaching`** - a teacher's own teaching assignments, classes and teaching groups in one list. Active assignments carry roster name, roster type, subject, academic year, start date, student count and an Assessments action; closed ones move to a Previous section with their date range, still readable, with no create action.
+- Sidebar entry, shown only to users who actually hold a staff profile.
+
+### Fixed
+- **The Step 2c navigation gap.** An assigned group teacher could reach their assessments only by typing the URL, because the only link lived on the teaching-group screen, which teachers cannot see.
+- The assessments back-link pointed at the roster page, which 403s for a teacher on a group-backed assignment - exactly the people this step serves. It now falls back to the workspace when the viewer cannot open the roster page.
+
+### Notes
+- **Identity is resolved explicitly.** `staff.user_id` has no unique index, so two staff rows can share a login and `User::staff()` (a HasOne) would silently return whichever came first - showing a teacher someone else's work. The workspace resolves candidates itself and reports "no staff profile" or "ambiguous staff mapping" instead of guessing. Recorded as Foundation technical debt; no migration added, since the step was scoped to require none.
+- English programme context is derived through group -> level -> programme, never stored on `class_subject`. A class-backed English assignment (Senior High) correctly shows none.
+- Cards are shaped to take ATP, Prota, Prosem, Teaching Modules and Daily Journal later. None of those exist, and no placeholder buttons or routes were created.
+
+### Unchanged, deliberately
+- `StudentPolicy`. The workspace is assignment-centred and grants no access to student profiles, guardians, finance or attendance. A test proves a group teacher still cannot view their own group member's record.
+- Assessment authorization. `AssessmentPolicy` already scoped on `class_subject.staff_id`; nothing needed widening.
+- No management controls. Reassigning or ending an assignment stays on the management screens.
+- **No migration.**
+
+### Preflight
+- Verified before starting: the class-participation path in `ReportCardBuilder` is student-specific (`$student->classes()` is a belongsToMany over `class_student`), not "all classes in the year". No change was needed; a negative regression test now pins it.
+
+### Tests
+- New `TeacherWorkspaceTest` (18 tests): identity resolution including the ambiguous and missing cases, both roster sources, isolation from other teachers, programme context presence and absence, active/historical split, academic-year filtering, and security - no StudentPolicy dependency, no management actions, no cross-teacher leakage via the year parameter. Suite: 216 to 234 passing.
+
+---
+
 ## 2026-08-10 - Phase 5 Step 2d
 
 ### Added

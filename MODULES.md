@@ -256,8 +256,27 @@ Discovery never goes via grade or programme, so a Green A student cannot pick up
 
 Only assessments whose `academic_period_id` belongs to the requested year are consumed. The deprecated `assessments.term` is never read, and columns still come from `academic_periods.sequence`, so a year with three periods renders three columns without a code change.
 
+#### Teacher Workspace — My Teaching Assignments *(Phase 5 Step 2e)*
+Status: Complete
+
+`/my-teaching` is a teacher's own list of teaching assignments — administrative classes and teaching groups together, because they are the same thing wearing different rosters. It closes the navigation gap found in Step 2c, where an assigned group teacher could reach their assessments only by typing the URL.
+
+Features:
+- **Active** section: roster name, roster type badge (Class / Teaching Group), subject, academic year, start date, current student count, and an Assessments action
+- **Previous** section: closed assignments with their date range. Still readable, still linked to their assessments, but no create action — Step 0's read/write split is what enforces that, not the page
+- English programme context (`Primary English Programme · Green`) derived through group → level → programme. Nothing is stored on `class_subject`, and a class-backed English assignment — Senior High, say — simply has none
+- Academic-year selector, so historical years remain reachable. The year always comes from the assignment's own roster source, never from `is_current`
+
+**Identity is resolved explicitly, not through `User::staff()`.** `staff.user_id` carries no unique index, so two staff rows can share one login; the `HasOne` would silently return whichever came first and show a teacher someone else's work. The page resolves candidates itself and reports *no staff profile* or *ambiguous staff mapping* rather than guessing.
+
+**It grants nothing.** No `StudentPolicy` change, no guardian, finance or attendance access, no student-profile links, and no management controls — reassigning a teacher stays on the management screens. Assessment access remains governed entirely by `AssessmentPolicy`, which scopes on `class_subject.staff_id`.
+
+Mobile-first: cards rather than a wide table, so at 375px a teacher sees roster, subject, status and the Assessments action without scrolling sideways.
+
+Card layout is deliberately shaped to take more actions later — ATP, Prota, Prosem, Teaching Modules, Daily Journal — but **only Assessments exists today**. No placeholder buttons or dead routes were created.
+
 **Not implemented yet, deliberately:**
-- **Teacher Workspace / My Teaching Assignments.** An assigned group teacher can reach their assessments by URL and the policy permits it, but no navigation path exists — the Assessments link lives on the teaching-group screen, which teachers cannot see. The eventual entry point ("My Teaching Assignments": Year 5A → Mathematics, Green A → English) should also carry ATP, Prota, Prosem, Teaching Modules and Journals later, which is exactly why it is not being improvised now.
+- ATP, Prota, Prosem, Teaching Modules, Daily Journal — the future actions this workspace is shaped for. None exist.
 - Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' profiles.
 - English proficiency-progress reporting (a level history across the year) and printable/Kindergarten report formats — both belong to the later Reporting & Document Generation work.
 

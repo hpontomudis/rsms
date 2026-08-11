@@ -26,6 +26,10 @@
         [
             'label' => 'Academics',
             'items' => array_values(array_filter([
+                // Only for people who actually hold a staff profile -- "my
+                // assignments" means nothing without one.
+                Route::has('my-teaching') && $user->can('academics.view') && $user->staff()->exists()
+                    ? $navItem('my-teaching', 'My Teaching', 'subjects') : null,
                 Route::has('classes.index') && $user->can('classes.view') ? $navItem('classes.index', 'Classes', 'classes') : null,
                 Route::has('subjects.index') && $user->can('academics.view') ? $navItem('subjects.index', 'Subjects', 'subjects') : null,
                 Route::has('english-programmes.index') && $user->can('academics.view') ? $navItem('english-programmes.index', 'English Programmes', 'subjects') : null,

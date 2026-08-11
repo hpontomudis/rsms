@@ -13,6 +13,7 @@ use App\Livewire\Invoices;
 use App\Livewire\Staff;
 use App\Livewire\Students;
 use App\Livewire\Subjects;
+use App\Livewire\Teaching;
 use App\Livewire\TeachingGroups;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Auth;
@@ -104,6 +105,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', Subjects\Create::class)->name('create');
         Route::get('/{subject}/edit', Subjects\Edit::class)->name('edit');
     });
+
+    // A teacher's own assignments -- the entry point into assessment work for
+    // both classes and teaching groups.
+    Route::get('/my-teaching', Teaching\MyAssignments::class)->name('my-teaching');
 
     Route::prefix('assessments')->name('assessments.')->group(function () {
         Route::get('/', Assessments\Index::class)->name('index');

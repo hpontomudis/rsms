@@ -6,7 +6,7 @@
 | Organization | Yayasan Pendidikan Halmahera Membangun Bangsa |
 | Location | North Halmahera, Indonesia |
 | Document type | Living master blueprint — update only for material changes (see rule at bottom) |
-| Last updated | 2026-08-10 (V5.0-pre built — Phase 5 Steps 0/1/2a-i/2a-ii/2b/2c/2d; V5 planning entities approved, not started) |
+| Last updated | 2026-08-10 (V5.0-pre built — Phase 5 Steps 0/1/2a-i/2a-ii/2b/2c/2d/2e; V5 planning entities approved, not started) |
 
 ---
 
@@ -71,7 +71,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Attendance | V2 | Complete |
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
-| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0, 1, 2a-i, 2a-ii, 2b, 2c and 2d built; Teacher Workspace and teacher student-scoping not yet connected; the planning entities themselves not started |
+| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0, 1, 2a-i, 2a-ii, 2b, 2c, 2d and 2e built; teacher student-scoping not yet connected; the planning entities themselves not started |
 | Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
 | Communication | V7 | Planned |
 | AI-assisted reporting | V8 | Planned |
@@ -134,7 +134,8 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V4.6 | Phase 5 Step 2a-ii — teaching groups, membership, English placement | Complete |
 | V4.8 | Phase 5 Step 2b — `class_subject` extended into the Teaching Assignment store (class OR teaching group) | Complete |
 | V4.9 | Phase 5 Step 2c — unified roster accessors; teaching groups assessable through the existing assessment engine | Complete |
-| V5.0-pre | Phase 5 Step 2d — report-card discovery across classes and teaching groups, merged by subject | Complete (current build) |
+| V5.0-pre | Phase 5 Step 2d — report-card discovery across classes and teaching groups, merged by subject | Complete |
+| V5.0-pre | Phase 5 Step 2e — Teacher Workspace (My Teaching Assignments) | Complete (current build) |
 | V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
 | V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
 | V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |
