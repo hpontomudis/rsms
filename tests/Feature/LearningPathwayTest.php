@@ -100,10 +100,18 @@ class LearningPathwayTest extends TestCase
         }
     }
 
-    public function test_teaching_module_and_journal_tables_do_not_exist_yet(): void
+    /**
+     * Modules and journals exist as of Phase 5F, so what this guards now is the
+     * boundary rather than their absence: a pathway is a sequence, and knows
+     * nothing about how or when anything is taught.
+     */
+    public function test_a_pathway_item_carries_no_instructional_or_actual_facts(): void
     {
-        foreach (['teaching_modules', 'daily_journals', 'lesson_journals'] as $table) {
-            $this->assertFalse(Schema::hasTable($table), "{$table} belongs to a later phase");
+        foreach (['teaching_module_id', 'daily_journal_id', 'planned_activity', 'actual_activity'] as $column) {
+            $this->assertFalse(
+                Schema::hasColumn('learning_pathway_items', $column),
+                "{$column} belongs to a downstream layer, not to a pathway item"
+            );
         }
     }
 

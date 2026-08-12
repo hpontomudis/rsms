@@ -4,6 +4,67 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 5F: Teaching Modules + Daily Journals
+
+The last two layers of the V5 teaching cycle. Module answers HOW; Journal answers WHAT ACTUALLY HAPPENED. Neither restates anything upstream.
+
+### Phase 5E lifecycle gap, closed first
+The Phase 5F architecture review proved that archiving an annual programme leaves a DRAFT semester programme behind as a draft, and that `SemesterProgrammeService::assertEditable()` inspected only the child's own status. Policies already refused it and activation was already blocked, but a direct service call could still add, edit or remove slots - and Phase 5F calls into that service without a policy in the path.
+- `assertEditable()` now also refuses when the parent annual programme is archived.
+- `SemesterProgrammePolicy::transition()` now consults the parent too, so the screen no longer offers Activate on a draft child of an archived programme - a button that could only ever fail.
+- Nine regression tests: add, update, remove, reorder, rebalance, activate, and create-new all refused; both policies false; historical read still works.
+
+### Added
+- **`teaching_modules`** - Modul Ajar nationally, Teaching Module on a Rahai English curriculum. Anchored to `class_subject`, with roster and subject mirrored from the assignment and an explicit `curriculum_scope_id`.
+- **`teaching_module_learning_objective`** and **`teaching_module_semester_programme_item`** - real auditable link models.
+- **`daily_journals`** - Jurnal Harian Guru / Daily Teaching Journal, plus **`daily_journal_learning_objective`** and **`daily_journal_assessment`**.
+- **`TeachingModuleService`**, **`DailyJournalService`**, **`TeachingModulePolicy`**, **`DailyJournalPolicy`**.
+- Screens for both, reached from the Teacher Workspace; `module`/`journal` added to the curriculum vocabulary. No new permission: `academics.plan` authors modules, `academics.record` writes journals, `academics.manage` corrects.
+
+### Anchored to the assignment, deliberately unlike Prota/Prosem
+A plan for the year belongs to the class and survives a handover. Instructional design and a teaching record belong to whoever made them. **Sarah's modules and journals stay Sarah's when Eka takes over** - Eka reads them, cannot edit them, and writes her own. No ownership transfer, no automatic copy, no `copied_from_id`. Teacher identity is never duplicated: it stays `class_subject.staff_id`.
+
+### The scope is chosen, never guessed
+Candidate scopes resolve through class -> grade -> learning phase, or teaching group -> English level, filtered to active curricula. **Zero is a stated error, one may be preselected, several must be chosen from** - silently taking the first would bind a module to the wrong curriculum version. Re-checked at draft->ready, since a class can be re-graded while a draft sits.
+
+### Integrity
+- Split composite foreign keys on `class_subject(id, class_id, subject_id)` and `(id, teaching_group_id, subject_id)` - two keys rather than one, because with a class XOR teaching group one column is always NULL and a single three-column key would be skipped entirely under MATCH SIMPLE.
+- Objective links use the mirrored-anchor pattern on both sides, so cross-phase, cross-subject and national-to-English links are refused by the database including with a falsified anchor. Verified in raw SQL.
+- A journal's module link is enforced by three composite keys (scope, class, group), so a Green English journal physically cannot cite a Year 5 Mathematics module.
+- A new `assessments(id, class_subject_id)` anchor forces every journal assessment link to the same teaching assignment.
+
+### Module <-> Prosem: an explicit optional many-to-many
+Chosen over the architecture review's "derive it from the shared objective". A module may cover weeks 3 and 4 but **not** week 6 even where all three slots teach the same objective, and one shared slot may be served by different teacher-specific modules across a handover - neither is derivable. Nothing about the slot is copied.
+
+### Lifecycles
+- **Module: draft -> ready -> archived.** Ready freezes the plan and both link sets; `teacher_notes` stays editable, because a margin note is not the plan. **Ready returns to draft only while no journal refers to it** - after that, what was planned is history. That single rule is why there is no version, supersedes or copied-from field.
+- **No new module against a closed assignment, by anyone including managers.** A plan written after the teaching would be a fiction.
+- **Journal: draft -> finalized.** Finalized is frozen to its teacher and correctable only by `academics.manage`, audited. No separate 'corrected' state - the audit log is one. **Manager backfill onto a closed assignment is allowed**, but only for a date that assignment actually covered.
+
+### Dates and periods
+`academic_period_id` is stored, not derived: academic periods carry no guarantee of being non-overlapping or complete, and `periodsFor()` returns every candidate so zero and several are reported rather than resolved. A mirrored `academic_year_id` lets a composite key prove the period belongs to the assignment's year, and the service checks the date against the period AND the assignment's effective range. A journal may legitimately fall outside its planned slot's dates - teaching slips - but never outside the period.
+
+### Two staff facts
+`class_subject.staff_id` is who was responsible; `conducted_by_staff_id` is who actually taught. A substitute lesson names the substitute and changes nothing about the assignment. **The conductor need not be currently active staff**: a 2025 session taught by someone who left in 2026 is still a fact about 2025, and current status cannot prove historical status. No Position-title restriction, because `positions.title` is free text with no teaching flag - inspected rather than assumed.
+
+### Plan versus actual
+A journal's objectives are its own many-to-many, never inferred from the module. A module planned TP1 and TP2; the lesson reached TP1. That difference is the layer's entire purpose, so the journal's set need not be a subset of the plan's.
+
+### Attendance boundary
+**No `attendance_id`, and no session-attendance engine.** A class-backed journal shows that date's administrative attendance as read-only context; a teaching-group journal says plainly that groups have no attendance yet rather than rendering an empty register. Tests assert the absent columns and tables so a later phase cannot quietly introduce them.
+
+### Fixed
+- Two obsolete guard tests replaced rather than deleted: `LearningPathwayTest` and `SemesterProgrammeTest` each asserted that module and journal tables do not exist. Both now assert the boundary that still holds - that a pathway item and a schedule slot carry no instructional or actual columns.
+- `DailyJournalPolicy` originally gated correction and backfill behind `academics.record`, which a principal does not hold. Correcting history is a management act; both now check `academics.manage` first.
+
+### Tests
+`TeachingModuleTest` (41), `DailyJournalTest` (43), `TeachingRecordUiTest` (13), plus nine Phase 5E gap tests in `PlanningInvariantTest` (now 49). Suite: 555 to 662 passing.
+
+### Verification
+Fresh PostgreSQL install (62 migrations) in an isolated `rahai_sms_verify` database: scope resolution, a module with two objectives linked to two of three slots, raw-SQL attacks on the objective link and the roster mirror both refused, freeze-at-ready with notes still editable, a substitute-conducted journal with the assignment untouched, actual TP as a subset of planned, a cross-assignment assessment link refused, a date outside its period refused, finalization, a finalized journal refusing deletion, a journalled module refusing to return to draft, succession in both directions including a successor citing a predecessor's ready module, an English group module refusing a National objective, and the absent attendance columns and tables. Repeated through the browser at 375px with no horizontal overflow. Database dropped, environment restored, development database left with zero modules and zero journals.
+
+---
+
 ## 2026-08-12 - Phase 5E refinement: the active-plan invariant
 
 Phase 5E allows an active Prota and an active Prosem to stay editable. That is the right call operationally, but it left one gap: neither layer was stopping the other from being edited into a state that contradicted it. An active semester plan could be left incomplete or unreconciled by a later annual edit, and vice versa. This closes that.

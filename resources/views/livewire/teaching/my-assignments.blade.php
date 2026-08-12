@@ -104,6 +104,17 @@
                             @endif
                         </div>
                     @endif
+
+                    {{-- The teacher's own work: instructional design and the
+                         record of what actually happened. --}}
+                    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                        <a href="{{ route('teaching.modules.index', $assignment) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                            Teaching Modules
+                        </a>
+                        <a href="{{ route('teaching.journal.index', $assignment) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                            Daily Journal
+                        </a>
+                    </div>
                 </div>
             @empty
                 <p class="rounded-lg bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
@@ -148,14 +159,21 @@
                         </div>
 
                         {{-- Still readable after a handover: the plan stayed with
-                             the class, and so did this teacher's view of it. --}}
-                        @if ($c['plan'])
-                            <div class="mt-3 border-t border-slate-200 pt-3 text-sm">
+                             the class, and so did this teacher's view of it.
+                             The modules and journals stayed with the teacher. --}}
+                        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-200 pt-3 text-sm">
+                            @if ($c['plan'])
                                 <a href="{{ route('planning.annual.show', $c['plan']) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
                                     Annual Programme
                                 </a>
-                            </div>
-                        @endif
+                            @endif
+                            <a href="{{ route('teaching.modules.index', $assignment) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                                Teaching Modules
+                            </a>
+                            <a href="{{ route('teaching.journal.index', $assignment) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                                Daily Journal
+                            </a>
+                        </div>
                     </div>
                 @endforeach
             </div>

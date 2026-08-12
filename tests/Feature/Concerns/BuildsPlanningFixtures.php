@@ -251,6 +251,75 @@ trait BuildsPlanningFixtures
         return $staff->user->fresh();
     }
 
+    /**
+     * The teaching assignment itself, rather than the teacher's user.
+     *
+     * Modules and journals hang off this, so the suites need the row and not
+     * just a login. Leaves the curriculum active, since planning against a
+     * draft curriculum is refused.
+     */
+    protected function assignmentFor(string $className, string $subject, string $key, string $from = '2026-07-01'): ClassSubject
+    {
+        // "Year 5A" belongs to grade "Year 5". Created on demand so a suite can
+        // ask for an assignment without first remembering to make the class.
+        if (! SchoolClass::where('name', $className)->exists()) {
+            $grade = Grade::all()->first(fn ($g) => str_starts_with($className, $g->name));
+
+            if (! $grade) {
+                throw new \RuntimeException("No grade matches the class name {$className}.");
+            }
+
+            $this->class($grade->name, $className);
+        }
+
+        $existing = ClassSubject::where('staff_id', $this->staff($key)->id)
+            ->where('subject_id', $this->subject($subject)->id)
+            ->whereHas('schoolClass', fn ($q) => $q->where('name', $className))
+            ->whereDate('started_on', $from)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $this->teacherFor($className, $subject, $key, $from);
+        $this->restoreActive($this->curriculum());
+
+        return ClassSubject::where('staff_id', $this->staff($key)->id)
+            ->where('subject_id', $this->subject($subject)->id)
+            ->whereHas('schoolClass', fn ($q) => $q->where('name', $className))
+            ->whereDate('started_on', $from)
+            ->firstOrFail();
+    }
+
+    protected function groupAssignmentFor(string $levelName, string $subject, string $key, string $from = '2026-07-01'): ClassSubject
+    {
+        $existing = ClassSubject::where('staff_id', $this->staff($key)->id)
+            ->where('subject_id', $this->subject($subject)->id)
+            ->where('teaching_group_id', $this->group($levelName)->id)
+            ->whereDate('started_on', $from)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $this->groupTeacherFor($levelName, $subject, $key, $from);
+        $this->restoreActive($this->englishCurriculum());
+
+        return ClassSubject::where('staff_id', $this->staff($key)->id)
+            ->where('subject_id', $this->subject($subject)->id)
+            ->where('teaching_group_id', $this->group($levelName)->id)
+            ->whereDate('started_on', $from)
+            ->firstOrFail();
+    }
+
+    /** Close an assignment the way a real handover does. */
+    protected function closeAssignment(ClassSubject $assignment, string $on): void
+    {
+        $assignment->update(['ended_on' => $on]);
+    }
+
     protected function staff(string $key): Staff
     {
         $user = User::firstOrCreate(

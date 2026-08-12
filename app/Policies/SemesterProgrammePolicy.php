@@ -31,8 +31,17 @@ class SemesterProgrammePolicy
         return $programme->isDraft() && $this->update($user, $programme);
     }
 
+    /**
+     * Also consults the parent, so the screen does not offer Activate on a
+     * draft child of an archived annual programme. The service refuses it
+     * either way; showing a button that can only fail is its own defect.
+     */
     public function transition(User $user, SemesterProgramme $programme): bool
     {
-        return $user->can('academics.manage') && ! $programme->isArchived();
+        if ($programme->isArchived() || $programme->annualProgramme?->isArchived()) {
+            return false;
+        }
+
+        return $user->can('academics.manage');
     }
 }

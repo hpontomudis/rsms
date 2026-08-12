@@ -273,10 +273,10 @@ Features:
 
 Mobile-first: cards rather than a wide table, so at 375px a teacher sees roster, subject, status and the Assessments action without scrolling sideways.
 
-Card layout is deliberately shaped to take more actions as they are built. *Updated in Phase 5E:* cards now carry **Assessments**, the **Annual Programme** (with its status), and the **Semester Programme** for the period containing today; a card with no plan offers to start one. Teaching Modules and Daily Journals still do not exist, and no placeholder buttons or dead routes were created for them.
+Card layout is deliberately shaped to take more actions as they are built. *Updated in Phase 5F:* cards now carry **Assessments**, the **Annual Programme** (with its status), the **Semester Programme** for the period containing today, **Teaching Modules** and **Daily Journal**. A card with no plan offers to start one. Historical cards expose the same entry points as history: a successor sees the shared Prota and Prosem plus their predecessor's modules and journals, read-only, with no "new" affordance anywhere.
 
 **Not implemented yet, deliberately:**
-- Teaching Modules and Daily Journal — the remaining future actions this workspace is shaped for.
+- Session attendance, and any Kindergarten developmental view.
 - Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' profiles.
 - English proficiency-progress reporting (a level history across the year) and printable/Kindergarten report formats — both belong to the later Reporting & Document Generation work.
 
@@ -292,8 +292,8 @@ Proposed features:
 - **Alur Tujuan Pembelajaran (ATP):** an ordered sequence of TP **within one curriculum scope and subject** (a learning phase, or an English level), via header + `atp_items`. *Corrected in Phase 5C: an earlier draft of this document said an ATP belonged directly to a teaching assignment (`class_subject`). It does not. A Phase C ATP spans Year 5 and Year 6, so it cannot be owned by one class's assignment; teaching assignments will SELECT an ATP, and several may use the same one.*
 - **Program Tahunan (Prota):** implemented in Phase 5E — see below. *Corrected twice: an earlier draft called Prota "a thin wrapper with no items of its own" (impossible — a Phase C pathway spans Year 5 and Year 6, so something must record which portion each roster covers and when), and a later one said it "belongs to a teaching assignment". It belongs to the **roster** — a class or a teaching group — so it survives a mid-year teacher handover. Grade and academic period enter the architecture here, not in the pathway.*
 - **Program Semester (Prosem):** implemented in Phase 5E — see below. Free-text week labels rather than a rigid calendar, and one allocated objective may take several slots.
-- **Modul Ajar (Teaching Module):** the richest record — links to CP/TP/ATP/an actual Assessment (optional), planning narrative fields (materials, methods, activities, assessment strategy, reflection, differentiation) — only `title` and the teaching assignment are required, everything else optional
-- **Jurnal Harian Guru (Daily Journal):** what was actually taught, distinct from the Module's plan; auto-derives teacher/subject/class/grade/year from the teaching assignment; optionally references a Teaching Module, an Attendance session (counts computed live, never copied), and an Assessment (scores stay in the existing assessment tables)
+- **Modul Ajar (Teaching Module):** implemented in Phase 5F — see below. *Corrected: an earlier draft had it linking to CP and to an Assessment at planning time. It links to TP only (traceability is Module → TP → CP), and planned assessment is free text, because at planning time the Assessment row usually does not exist yet. `planned_activity` is required alongside `title`: a module without its activity is not a plan.*
+- **Jurnal Harian Guru (Daily Journal):** implemented in Phase 5F — see below. *Corrected: an earlier draft had it referencing an Attendance session. It does not — there is no `attendance_id`, and attendance is shown as read-only context for class-backed sessions only. It also does not "auto-derive" its context: the roster and subject are mirrored from the assignment for integrity, and the period and curriculum scope are chosen explicitly rather than inferred.*
 - **Journal Dashboard:** "my teaching journal" calendar view, filterable by class/subject/date
 - **Teaching Administration Dashboard:** per-teacher completion view; admin/principal school-wide view — completion metrics compare journal entries against actual attendance sessions taken (no fabricated "expected sessions" number, since no timetable/schedule module exists yet)
 
@@ -470,8 +470,44 @@ No fact is stated twice. The pathway does not know about periods; Prota does not
 **Teacher Workspace integration:** `/my-teaching` cards now expose Assessments, the Annual Programme (with status), and, for the period containing today, the Semester Programme. A card with no plan offers to start one, prefilled from the assignment.
 
 **Not implemented yet, deliberately:**
-- Teaching Modules and Daily Journals — the "how" and the "actual". The Prota screen says so on the page rather than implying completeness.
 - Document generation for Prota/Prosem (V6).
+
+#### Teaching Modules & Daily Journals *(Phase 5F)*
+Status: Complete
+
+The last two layers of the planning contract. On the national curriculum these are **Modul Ajar** and **Jurnal Harian Guru**; on a Rahai English curriculum, **Teaching Module** and **Daily Teaching Journal**. Physically `teaching_modules` and `daily_journals` — one engine, two vocabularies.
+
+**Module = HOW. Journal = WHAT ACTUALLY HAPPENED.** Neither restates anything upstream: no CP or TP text, no ATP order, no Prota period, no Prosem dates, no scores.
+
+**Both are anchored to `class_subject`, deliberately unlike Prota and Prosem.** A plan for the year belongs to the class and survives a handover; instructional design and a teaching record belong to the person who wrote them. **Sarah's modules and journals stay Sarah's when Eka takes over** — Eka reads them, cannot edit them, and writes her own. There is no ownership transfer, no automatic copy and no `copied_from_id`. The roster columns and subject are mirrored from the assignment so composite keys can police them; teacher identity is never duplicated.
+
+**A module's curriculum scope is chosen, never guessed.** Candidates resolve through *class → grade → learning phase* or *teaching group → English level*, filtered to active curricula. Zero candidates is a stated error, one may be preselected, and **several must be chosen from** — silently taking the first would bind a module to the wrong curriculum version. Re-checked at draft→ready, because a class can be re-graded while a draft sits.
+
+**Module ↔ TP is many-to-many**, through a real auditable model with mirrored scope and subject. Two composite keys make every link database-enforced: a Phase C Mathematics module cannot link a Phase D objective, a Phase C English one, or a Green English one — including with a falsified anchor.
+
+**Module ↔ Prosem slot is an explicit optional many-to-many.** It answers which design serves which meeting — a fact neither table holds alone. A module may cover weeks 3 and 4 but **not** week 6 even where all three teach the same objective, and one shared slot may be served by different teacher-specific modules across a handover. Links are editable only while the module is a draft, and never against an archived semester programme.
+
+**Module lifecycle: draft → ready → archived.** Ready freezes the plan and its links; `teacher_notes` stays editable because a margin note is not the plan. **Ready may return to draft only while no journal refers to it** — once something has been taught against it, what was planned is history. That rule is why there is no version, supersedes or copied-from field: revision is archive-and-write-new.
+
+**No new module may be written against a closed assignment by anyone**, managers included. A plan written after the teaching would be a fiction.
+
+**A journal stores its period rather than deriving it.** Academic periods carry no guarantee of being non-overlapping or complete, so `periodsFor()` returns every candidate: one may be preselected, zero and several are both reported. A mirrored `academic_year_id` lets a composite key prove the period belongs to the assignment's year, and the service checks the date against both the period and the assignment's effective range.
+
+**Two staff facts, and they differ.** `class_subject.staff_id` is who was responsible; `conducted_by_staff_id` is who actually taught. A substitute lesson names the substitute and changes nothing about the assignment. **The conductor need not be currently active staff** — a 2025 session taught by someone who left in 2026 is still a fact about 2025, and current status cannot prove historical status. There is no Position-based restriction, because `positions.title` is free text with no teaching flag.
+
+**Journal ↔ TP is its own many-to-many, never inferred from the module.** A module planned TP1 and TP2; the lesson reached TP1. That difference is the entire point of the layer, so the journal's objectives need not be a subset of the module's. **Journal ↔ Assessment** records only that an activity happened — every mark stays in `assessment_results` — and a composite key forces the assessment to belong to the same assignment.
+
+**Journal lifecycle: draft → finalized.** A finalized journal is frozen to its teacher and correctable only by `academics.manage`, audited; there is no separate "corrected" state because the audit log is one. **Manager backfill onto a closed assignment is allowed** but only for a date that assignment actually covered — an explicit correction privilege, and the one place journals are looser than modules.
+
+**Daily Journal ≠ Attendance.** There is no `attendance_id` and no session-attendance engine. A class-backed journal may display that date's administrative attendance as read-only context; a teaching-group journal says plainly that no attendance exists for groups rather than rendering an empty register.
+
+**`meeting_number` is advisory** — teacher-entered, not unique, not identity, and never an ordering key; journals order by date. **`actual_lesson_periods`** is the single duration field, teacher-recorded because there is still no timetable engine.
+
+**Not implemented yet, deliberately:**
+- Session or subject attendance for classes and teaching groups.
+- Kindergarten developmental assessment and reporting.
+- Plan-versus-actual analytics. The architecture permits it — journal → module → planned TP, journal → actual TP, journal → slot, journal → assessments — but nothing computes it yet.
+- Document generation (V6).
 
 ---
 

@@ -108,6 +108,8 @@ class Curriculum extends Model
                 'pathway' => 'Learning Path', 'pathways' => 'Learning Paths',
                 'basis' => 'Level', 'bases' => 'Levels',
                 'annual' => 'Annual Programme', 'semester' => 'Semester Programme',
+                'module' => 'Teaching Module', 'modules' => 'Teaching Modules',
+                'journal' => 'Daily Teaching Journal', 'journals' => 'Daily Teaching Journal',
             ]
             : [
                 'outcome' => 'Capaian Pembelajaran (CP)', 'outcomes' => 'Capaian Pembelajaran (CP)',
@@ -115,6 +117,8 @@ class Curriculum extends Model
                 'pathway' => 'Alur Tujuan Pembelajaran (ATP)', 'pathways' => 'Alur Tujuan Pembelajaran (ATP)',
                 'basis' => 'Fase', 'bases' => 'Learning Phases',
                 'annual' => 'Program Tahunan (Prota)', 'semester' => 'Program Semester (Prosem)',
+                'module' => 'Modul Ajar', 'modules' => 'Modul Ajar',
+                'journal' => 'Jurnal Harian Guru', 'journals' => 'Jurnal Harian Guru',
             ];
     }
 

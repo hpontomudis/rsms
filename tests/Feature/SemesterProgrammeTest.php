@@ -459,10 +459,23 @@ class SemesterProgrammeTest extends TestCase
 
     // -------------------------------------------------------- delete safety
 
-    public function test_no_module_or_journal_tables_exist_yet(): void
+    /**
+     * Phase 5F built modules and journals, so the old "these tables do not
+     * exist" guard is obsolete. What still has to hold is the boundary: a
+     * schedule slot says WHEN and nothing else -- how it will be taught belongs
+     * to the module, and what actually happened to the journal.
+     */
+    public function test_a_schedule_slot_carries_no_instructional_or_actual_facts(): void
     {
-        foreach (['teaching_modules', 'modul_ajar', 'daily_journals', 'teaching_journals', 'jurnal_harian'] as $table) {
-            $this->assertFalse(Schema::hasTable($table), "{$table} belongs to a later phase");
+        foreach ([
+            'planned_activity', 'teaching_strategy', 'resources', 'differentiation',
+            'actual_activity', 'reflection', 'actual_lesson_periods',
+            'teaching_module_id', 'conducted_by_staff_id',
+        ] as $column) {
+            $this->assertFalse(
+                Schema::hasColumn('semester_programme_items', $column),
+                "{$column} belongs to the module or journal layer, not to a schedule slot"
+            );
         }
     }
 

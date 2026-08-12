@@ -686,6 +686,159 @@ class PlanningInvariantTest extends TestCase
         $semester->fresh()->update(['status' => 'active']);
     }
 
+    // ------------------------------------- draft child of an archived parent
+
+    /**
+     * Archiving an annual programme leaves a DRAFT semester programme behind
+     * as a draft -- only an active child blocks the archive. That draft is then
+     * historical: readable, but never editable, activatable, or usable for new
+     * planning, whatever its own status says.
+     *
+     * @return array{0: AnnualProgramme, 1: SemesterProgramme, 2: AnnualProgrammeItem}
+     */
+    private function draftUnderArchivedParent(): array
+    {
+        $annual = $this->classProgramme();
+        $item = $this->programmes()->addItem($annual, $this->pathwayItem(1), $this->period('Semester 1'), 8);
+        $annual = $this->programmes()->activate($annual->fresh());
+
+        $draft = $this->semesters()->create($annual, $this->period('Semester 1'));
+        $this->semesters()->addSlot($draft, $item, ['week_label' => 'Minggu 1', 'planned_lesson_periods' => 8]);
+
+        $this->programmes()->archive($annual->fresh());
+
+        return [$annual->fresh(), $draft->fresh(), $item->fresh()];
+    }
+
+    public function test_a_draft_schedule_survives_its_parent_being_archived(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $draft] = $this->draftUnderArchivedParent();
+
+        $this->assertTrue($annual->isArchived());
+        $this->assertTrue($draft->isDraft());
+    }
+
+    public function test_a_draft_schedule_under_an_archived_parent_cannot_add_a_slot(): void
+    {
+        $this->seedReferenceData();
+        [, $draft, $item] = $this->draftUnderArchivedParent();
+
+        try {
+            $this->semesters()->addSlot($draft, $item, ['week_label' => 'Minggu 2']);
+            $this->fail('a slot was added to a schedule hanging off an archived annual programme');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('annual programme is archived', $e->errors()['status'][0]);
+        }
+
+        $this->assertSame(1, $draft->fresh()->items()->count());
+    }
+
+    public function test_a_draft_schedule_under_an_archived_parent_cannot_update_a_slot(): void
+    {
+        $this->seedReferenceData();
+        [, $draft] = $this->draftUnderArchivedParent();
+
+        $this->expectException(ValidationException::class);
+
+        try {
+            $this->semesters()->updateSlot($draft->items()->first(), ['week_label' => 'Changed']);
+        } finally {
+            $this->assertSame('Minggu 1', $draft->fresh()->items()->first()->week_label);
+        }
+    }
+
+    public function test_a_draft_schedule_under_an_archived_parent_cannot_remove_a_slot(): void
+    {
+        $this->seedReferenceData();
+        [, $draft] = $this->draftUnderArchivedParent();
+
+        $this->expectException(ValidationException::class);
+
+        try {
+            $this->semesters()->removeSlot($draft->items()->first());
+        } finally {
+            $this->assertSame(1, $draft->fresh()->items()->count());
+        }
+    }
+
+    public function test_a_draft_schedule_under_an_archived_parent_cannot_be_reordered(): void
+    {
+        $this->seedReferenceData();
+        [, $draft] = $this->draftUnderArchivedParent();
+
+        $this->expectException(ValidationException::class);
+
+        $this->semesters()->moveSlot($draft->items()->first(), 'down');
+    }
+
+    public function test_a_draft_schedule_under_an_archived_parent_cannot_be_rebalanced(): void
+    {
+        $this->seedReferenceData();
+        [, $draft, $item] = $this->draftUnderArchivedParent();
+        $slot = $draft->items()->first();
+
+        $this->expectException(ValidationException::class);
+
+        try {
+            $this->semesters()->rebalance($item, [$slot->id => 4]);
+        } finally {
+            $this->assertSame(8, $slot->fresh()->planned_lesson_periods);
+        }
+    }
+
+    public function test_a_draft_schedule_under_an_archived_parent_cannot_be_activated(): void
+    {
+        $this->seedReferenceData();
+        [, $draft] = $this->draftUnderArchivedParent();
+
+        try {
+            $this->semesters()->activate($draft);
+            $this->fail('a schedule under an archived annual programme was activated');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('archived', $e->errors()['status'][0]);
+        }
+
+        $this->assertTrue($draft->fresh()->isDraft());
+    }
+
+    public function test_no_new_schedule_may_be_created_under_an_archived_parent(): void
+    {
+        $this->seedReferenceData();
+        [$annual] = $this->draftUnderArchivedParent();
+
+        $this->expectException(ValidationException::class);
+
+        $this->semesters()->create($annual, $this->period('Semester 2'));
+    }
+
+    public function test_the_policies_refuse_both_editing_and_transition_under_an_archived_parent(): void
+    {
+        $this->seedReferenceData();
+        [, $draft] = $this->draftUnderArchivedParent();
+
+        $teacher = $this->teacherFor('Year 5A', 'Maths', 'sarah');
+        $manager = $this->userWithRole('principal');
+
+        $this->assertFalse($teacher->can('update', $draft));
+        $this->assertFalse($manager->can('update', $draft));
+        // The one that was wrong: a manager was being offered Activate.
+        $this->assertFalse($manager->can('transition', $draft));
+    }
+
+    public function test_historical_read_still_works_under_an_archived_parent(): void
+    {
+        $this->seedReferenceData();
+        [, $draft] = $this->draftUnderArchivedParent();
+
+        $teacher = $this->teacherFor('Year 5A', 'Maths', 'sarah');
+
+        $this->assertTrue($teacher->can('view', $draft));
+        $this->assertSame(1, $draft->items()->count());
+        $this->assertSame('Minggu 1', $draft->items()->first()->week_label);
+        $this->assertSame(8, $draft->items()->first()->planned_lesson_periods);
+    }
+
     // ------------------------------------------------------------ audit
 
     public function test_a_refused_edit_leaves_no_audit_trail(): void

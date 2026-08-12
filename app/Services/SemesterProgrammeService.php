@@ -459,10 +459,24 @@ class SemesterProgrammeService
         }
     }
 
+    /**
+     * A semester plan is editable only while BOTH it and its parent are open.
+     *
+     * The parent check is the point: archiving an annual programme leaves any
+     * draft child behind as a draft, and without this a direct service call
+     * could still edit a plan hanging off an archived year. The policies
+     * already refused it -- they delegate to AnnualProgrammePolicy::update --
+     * but services are this project's enforcement boundary, and Phase 5F calls
+     * into here without a policy in the path.
+     */
     private function assertEditable(SemesterProgramme $programme): void
     {
         if ($programme->isArchived()) {
             $this->fail('status', 'An archived semester programme is read-only.');
+        }
+
+        if ($programme->annualProgramme?->isArchived()) {
+            $this->fail('status', 'The annual programme is archived, so its semester planning is read-only.');
         }
     }
 

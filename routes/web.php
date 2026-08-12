@@ -133,6 +133,15 @@ Route::middleware('auth')->group(function () {
     // both classes and teaching groups.
     Route::get('/my-teaching', Teaching\MyAssignments::class)->name('my-teaching');
 
+    // Modules and journals hang off the ASSIGNMENT, not the roster, so their
+    // list URLs carry a class_subject and their detail URLs carry the record.
+    Route::prefix('teaching')->name('teaching.')->group(function () {
+        Route::get('/{classSubject}/modules', Teaching\Modules::class)->name('modules.index');
+        Route::get('/modules/{teachingModule}', Teaching\ModuleShow::class)->name('modules.show');
+        Route::get('/{classSubject}/journal', Teaching\Journals::class)->name('journal.index');
+        Route::get('/journal/{dailyJournal}', Teaching\JournalShow::class)->name('journal.show');
+    });
+
     Route::prefix('assessments')->name('assessments.')->group(function () {
         Route::get('/', Assessments\Index::class)->name('index');
         Route::get('/create', Assessments\Create::class)->name('create');
