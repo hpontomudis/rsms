@@ -23,6 +23,15 @@ use Illuminate\Validation\ValidationException;
  * partial unique index would have to know the parent's status, which SQL
  * cannot read from an index predicate. Every write path below re-normalises
  * to 1..n in the same transaction, and activation re-validates.
+ *
+ * THE ACTIVE INVARIANT. Because an active plan stays editable, completeness
+ * and JP reconciliation cannot be checked only at activation -- a later edit
+ * could quietly falsify them. Every mutation therefore runs inside a
+ * transaction and re-asserts `assertPlanIsComplete()` against the *resulting*
+ * database state; a violation throws and the transaction rolls back. The state
+ * is re-read rather than simulated, so there is no second model of the rules to
+ * drift out of step with the first. A DRAFT plan is exempt: it is allowed to be
+ * incomplete while it is being prepared, and activation is the gate.
  */
 class SemesterProgrammeService
 {
@@ -84,6 +93,7 @@ class SemesterProgrammeService
             ]);
 
             $this->normalise($programme);
+            $this->guardActive($programme);
 
             return $slot->refresh();
         });
@@ -97,15 +107,19 @@ class SemesterProgrammeService
         [$start, $end] = $this->validateDates($programme, $attributes);
         $this->assertPositiveBudget($attributes['planned_lesson_periods'] ?? null);
 
-        $slot->update([
-            'week_label' => ($attributes['week_label'] ?? '') !== '' ? $attributes['week_label'] : null,
-            'planned_start_date' => $start,
-            'planned_end_date' => $end,
-            'planned_lesson_periods' => $attributes['planned_lesson_periods'] ?? null,
-            'notes' => ($attributes['notes'] ?? '') !== '' ? $attributes['notes'] : null,
-        ]);
+        return DB::transaction(function () use ($programme, $slot, $attributes, $start, $end) {
+            $slot->update([
+                'week_label' => ($attributes['week_label'] ?? '') !== '' ? $attributes['week_label'] : null,
+                'planned_start_date' => $start,
+                'planned_end_date' => $end,
+                'planned_lesson_periods' => $attributes['planned_lesson_periods'] ?? null,
+                'notes' => ($attributes['notes'] ?? '') !== '' ? $attributes['notes'] : null,
+            ]);
 
-        return $slot->refresh();
+            $this->guardActive($programme);
+
+            return $slot->refresh();
+        });
     }
 
     public function removeSlot(SemesterProgrammeItem $slot): void
@@ -116,6 +130,82 @@ class SemesterProgrammeService
         DB::transaction(function () use ($programme, $slot) {
             $slot->delete();
             $this->normalise($programme);
+            $this->guardActive($programme);
+        });
+    }
+
+    /**
+     * Restate one objective's whole allocation at once: its annual budget and
+     * the distribution of that budget across ALL of its slots.
+     *
+     * This exists because sequential editing cannot get there. Moving an active
+     * 2+2+4 to 3+1+4 is refused at the first write, since the intermediate
+     * 3+2+4 does not reconcile; and raising a budget from 8 to 10 is impossible
+     * from either side alone -- change the slots and they disagree with 8,
+     * change the budget and it disagrees with the slots. Both facts have to
+     * move together or neither can.
+     *
+     * So one transaction writes the budget and every slot, and the invariant is
+     * re-asserted over the result. No revision subsystem, no version history --
+     * just the smallest operation that never leaves an invalid state visible.
+     *
+     * The caller must state EVERY slot of the item. A partial map is rejected
+     * rather than treated as "leave the rest alone", because the point of the
+     * operation is that the total is stated deliberately.
+     *
+     * @param  array<int, int|null>  $lessonPeriodsBySlotId
+     */
+    public function rebalance(AnnualProgrammeItem $item, array $lessonPeriodsBySlotId, ?int $budget = null, bool $touchBudget = false): void
+    {
+        $slots = $item->semesterItems()->get();
+
+        if ($slots->isEmpty()) {
+            $this->fail('items', 'That objective has no schedule slots to rebalance.');
+        }
+
+        $programme = $slots->first()->semesterProgramme;
+        $this->assertEditable($programme);
+
+        if ($touchBudget) {
+            if ($item->annualProgramme->isArchived()) {
+                $this->fail('status', 'An archived annual programme is read-only.');
+            }
+
+            if ($budget !== null && $budget < 1) {
+                $this->fail('planned_lesson_periods', 'A lesson-period budget must be at least 1, or left blank.');
+            }
+        }
+
+        $known = $slots->pluck('id')->all();
+        $given = array_map('intval', array_keys($lessonPeriodsBySlotId));
+
+        if (array_diff($given, $known) !== []) {
+            $this->fail('items', 'A slot in that allocation does not belong to this objective.');
+        }
+
+        if (array_diff($known, $given) !== []) {
+            $this->fail('items', 'Give a figure for every slot of this objective, so the total is stated deliberately.');
+        }
+
+        foreach ($lessonPeriodsBySlotId as $value) {
+            $this->assertPositiveBudget($value === null || $value === '' ? null : (int) $value);
+        }
+
+        DB::transaction(function () use ($item, $slots, $lessonPeriodsBySlotId, $programme, $budget, $touchBudget) {
+            if ($touchBudget && $item->planned_lesson_periods !== $budget) {
+                $item->update(['planned_lesson_periods' => $budget]);
+            }
+
+            foreach ($slots as $slot) {
+                $value = $lessonPeriodsBySlotId[$slot->id] ?? null;
+                $value = ($value === null || $value === '') ? null : (int) $value;
+
+                if ($slot->planned_lesson_periods !== $value) {
+                    $slot->update(['planned_lesson_periods' => $value]);
+                }
+            }
+
+            $this->guardActive($programme);
         });
     }
 
@@ -142,6 +232,7 @@ class SemesterProgrammeService
             $slot->update(['position' => $theirs]);
 
             $this->normalise($programme);
+            $this->guardActive($programme);
         });
     }
 
@@ -194,7 +285,26 @@ class SemesterProgrammeService
             $this->fail('academic_period_id', 'The period belongs to a different academic year.');
         }
 
-        $allocated = $annual->items()
+        return DB::transaction(function () use ($programme) {
+            $this->normalise($programme);
+            $this->assertPlanIsComplete($programme);
+
+            $programme->update(['status' => 'active']);
+
+            return $programme->refresh();
+        });
+    }
+
+    /**
+     * THE INVARIANT. Everything an active semester plan must satisfy.
+     *
+     * Used twice: as the activation gate, and as the guard re-run after every
+     * edit to an already-active plan. One implementation, so the two can never
+     * disagree about what "valid" means.
+     */
+    public function assertPlanIsComplete(SemesterProgramme $programme): void
+    {
+        $allocated = $programme->annualProgramme->items()
             ->where('academic_period_id', $programme->academic_period_id)
             ->with('learningPathwayItem.learningObjective')
             ->get();
@@ -203,29 +313,38 @@ class SemesterProgrammeService
             $this->fail('items', 'The annual programme has nothing allocated to this period.');
         }
 
-        $slots = $programme->items()->get();
+        $slots = SemesterProgrammeItem::where('semester_programme_id', $programme->id)
+            ->orderBy('position')->orderBy('id')->get();
 
         if ($slots->isEmpty()) {
-            $this->fail('items', 'Schedule at least one slot before activating this programme.');
+            $this->fail('items', 'A semester programme needs at least one schedule slot.');
+        }
+
+        $allocatedIds = $allocated->pluck('id');
+
+        // No orphans: a slot must schedule something this period allocates.
+        // The composite keys already refuse it on write; this catches a slot
+        // stranded by a later change on the annual side.
+        foreach ($slots as $slot) {
+            if (! $allocatedIds->contains($slot->annual_programme_item_id)) {
+                $this->fail('items', 'A schedule slot points at an objective this period no longer allocates.');
+            }
         }
 
         $slotsByItem = $slots->groupBy('annual_programme_item_id');
 
         foreach ($allocated as $item) {
             $itemSlots = $slotsByItem->get($item->id, collect());
+            $label = $item->learningPathwayItem?->learningObjective?->code
+                ?? 'Objective #'.$item->learningPathwayItem?->position;
 
             if ($itemSlots->isEmpty()) {
-                $label = $item->learningPathwayItem?->learningObjective?->code
-                    ?? 'objective #'.$item->learningPathwayItem?->position;
-
                 $this->fail('items', "{$label} is allocated to this period but has no schedule slot yet.");
             }
 
             if ($item->planned_lesson_periods === null) {
                 continue;
             }
-
-            $label = $item->learningPathwayItem?->learningObjective?->code ?? 'An allocated objective';
 
             if ($itemSlots->contains(fn ($slot) => $slot->planned_lesson_periods === null)) {
                 $this->fail('items', "{$label} has a {$item->planned_lesson_periods} JP budget, so every one of its slots needs its own JP.");
@@ -245,20 +364,26 @@ class SemesterProgrammeService
             ]);
         }
 
-        return DB::transaction(function () use ($programme) {
-            $this->normalise($programme);
+        if ($slots->pluck('position')->all() !== range(1, $slots->count())) {
+            $this->fail('items', 'The schedule is not in a contiguous order.');
+        }
+    }
 
-            $positions = SemesterProgrammeItem::where('semester_programme_id', $programme->id)
-                ->orderBy('position')->pluck('position');
+    /**
+     * Re-assert the invariant against the state just written.
+     *
+     * Called inside the mutating transaction, so a violation rolls the edit
+     * back. Draft plans are deliberately exempt.
+     */
+    private function guardActive(SemesterProgramme $programme): void
+    {
+        $current = $programme->fresh();
 
-            if ($positions->all() !== range(1, $positions->count())) {
-                $this->fail('items', 'The schedule could not be normalised to a contiguous order.');
-            }
+        if ($current === null || ! $current->isActive()) {
+            return;
+        }
 
-            $programme->update(['status' => 'active']);
-
-            return $programme->refresh();
-        });
+        $this->assertPlanIsComplete($current);
     }
 
     public function archive(SemesterProgramme $programme): SemesterProgramme

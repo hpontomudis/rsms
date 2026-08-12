@@ -8,6 +8,7 @@ use App\Models\AnnualProgrammeItem;
 use App\Models\LearningPathway;
 use App\Models\LearningPathwayItem;
 use App\Models\SchoolClass;
+use App\Models\SemesterProgramme;
 use App\Models\Subject;
 use App\Models\TeachingGroup;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,7 @@ class AnnualProgrammeService
             $this->fail('learning_pathway_item_id', 'That objective is already allocated in this programme.');
         }
 
+        $this->assertPeriodHasNoActiveSchedule($programme, $period);
         $this->assertPositiveBudget($lessonPeriods);
 
         return AnnualProgrammeItem::create([
@@ -148,7 +150,8 @@ class AnnualProgrammeService
      */
     public function updateItem(AnnualProgrammeItem $item, ?AcademicPeriod $period = null, ?int $lessonPeriods = null, bool $touchBudget = false, ?string $notes = null): AnnualProgrammeItem
     {
-        $this->assertEditable($item->annualProgramme);
+        $programme = $item->annualProgramme;
+        $this->assertEditable($programme);
 
         $changes = [];
 
@@ -164,11 +167,16 @@ class AnnualProgrammeService
                 $this->fail('academic_period_id', "{$period->name} belongs to a different academic year.");
             }
 
+            // Unscheduled here, but arriving in a period whose plan is already
+            // in force would leave that plan incomplete the moment it lands.
+            $this->assertPeriodHasNoActiveSchedule($programme, $period);
+
             $changes['academic_period_id'] = $period->id;
         }
 
         if ($touchBudget) {
             $this->assertPositiveBudget($lessonPeriods);
+            $this->assertBudgetStillReconciles($item, $lessonPeriods);
             $changes['planned_lesson_periods'] = $lessonPeriods;
         }
 
@@ -257,6 +265,15 @@ class AnnualProgrammeService
         });
     }
 
+    /**
+     * Archiving is bottom-up: operational semester plans first, then the annual
+     * plan above them.
+     *
+     * An archived annual programme is read-only, so an active semester plan
+     * hanging beneath one would be a live schedule whose budget nobody can
+     * correct. Nothing cascades -- archived semester programmes keep every row
+     * they had, and are never rewritten by anything that happens here.
+     */
     public function archive(AnnualProgramme $programme): AnnualProgramme
     {
         if ($programme->isArchived()) {
@@ -265,6 +282,14 @@ class AnnualProgrammeService
 
         if ($programme->isDraft()) {
             $this->fail('status', 'A draft is deleted rather than archived.');
+        }
+
+        $stillActive = $programme->semesterProgrammes()->where('status', 'active')->with('academicPeriod')->get();
+
+        if ($stillActive->isNotEmpty()) {
+            $names = $stillActive->map(fn ($sp) => $sp->academicPeriod->name)->implode(', ');
+
+            $this->fail('status', "Archive the active semester programme for {$names} first, then archive the annual programme.");
         }
 
         $programme->update(['status' => 'archived']);
@@ -308,6 +333,76 @@ class AnnualProgrammeService
                 }
             })
             ->values();
+    }
+
+    /**
+     * A period whose semester plan is IN FORCE will not accept a new objective.
+     *
+     * Allocating one would make that active plan incomplete the instant it
+     * landed. The alternatives -- inventing a slot, or silently pushing the
+     * semester plan back to draft -- both falsify data on the teacher's behalf,
+     * so this refuses and names the workflow instead.
+     */
+    private function assertPeriodHasNoActiveSchedule(AnnualProgramme $programme, AcademicPeriod $period): void
+    {
+        $active = $programme->semesterProgrammes()
+            ->where('academic_period_id', $period->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($active) {
+            $this->fail(
+                'academic_period_id',
+                "{$period->name} already has an active Semester Programme. Add this objective through a planning revision that also schedules it."
+            );
+        }
+    }
+
+    /**
+     * Changing a budget must not falsify a schedule that is already in force.
+     *
+     * To NULL is always allowed: it removes the reconciliation requirement
+     * rather than contradicting the slots, and no slot data becomes untrue.
+     * To a figure -- including from NULL -- the existing slots must already
+     * state their own JP and sum to exactly that figure. Rebalance the slots
+     * first (one atomic operation) and then move the budget.
+     */
+    private function assertBudgetStillReconciles(AnnualProgrammeItem $item, ?int $lessonPeriods): void
+    {
+        if ($lessonPeriods === null) {
+            return;
+        }
+
+        $scheduled = SemesterProgramme::where('annual_programme_id', $item->annual_programme_id)
+            ->where('academic_period_id', $item->academic_period_id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $scheduled) {
+            return;
+        }
+
+        $slots = $item->semesterItems()->get();
+
+        if ($slots->isEmpty()) {
+            return;
+        }
+
+        if ($slots->contains(fn ($slot) => $slot->planned_lesson_periods === null)) {
+            $this->fail(
+                'planned_lesson_periods',
+                "This item is scheduled in the active Semester Programme by slots that carry no JP. Give every slot its own JP before setting an annual budget of {$lessonPeriods} JP."
+            );
+        }
+
+        $total = (int) $slots->sum('planned_lesson_periods');
+
+        if ($total !== $lessonPeriods) {
+            $this->fail(
+                'planned_lesson_periods',
+                "This item is scheduled for {$total} JP in the active Semester Programme. Update the semester allocation before changing the annual budget to {$lessonPeriods} JP."
+            );
+        }
     }
 
     private function assertPositiveBudget(?int $lessonPeriods): void

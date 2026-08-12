@@ -200,6 +200,112 @@ class PlanningUiTest extends TestCase
         $this->assertSame(1, $second->fresh()->position);
     }
 
+    // ------------------------------------------- cross-layer, from the UI
+
+    public function test_the_prota_screen_refuses_a_new_objective_in_a_period_that_is_in_force(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $semester] = $this->scheduledProgramme();
+        app(SemesterProgrammeService::class)->activate($semester->fresh());
+
+        Livewire::actingAs($this->userWithRole('principal'))
+            ->test(AnnualProgrammeShow::class, ['annualProgramme' => $annual])
+            ->set('showAddItem', true)
+            ->set('learning_pathway_item_id', (string) $this->pathwayItem(2)->id)
+            ->set('academic_period_id', (string) $this->period('Semester 1')->id)
+            ->call('addItem')
+            ->assertHasErrors('academic_period_id');
+
+        $this->assertSame(1, $annual->fresh()->items()->count());
+    }
+
+    public function test_the_prota_screen_says_which_periods_are_in_force(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $semester] = $this->scheduledProgramme();
+        app(SemesterProgrammeService::class)->activate($semester->fresh());
+
+        Livewire::actingAs($this->userWithRole('principal'))
+            ->test(AnnualProgrammeShow::class, ['annualProgramme' => $annual])
+            ->assertSee("Semester 1's semester plan is in force", false);
+    }
+
+    public function test_the_prota_screen_refuses_a_budget_the_active_schedule_contradicts(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $semester] = $this->scheduledProgramme();
+        app(SemesterProgrammeService::class)->activate($semester->fresh());
+        $item = $annual->items()->first();
+
+        Livewire::actingAs($this->userWithRole('principal'))
+            ->test(AnnualProgrammeShow::class, ['annualProgramme' => $annual])
+            ->call('startEditingItem', $item->id)
+            ->set('planned_lesson_periods', '10')
+            ->call('saveItem')
+            ->assertHasErrors('planned_lesson_periods');
+
+        $this->assertSame(8, $item->fresh()->planned_lesson_periods);
+    }
+
+    public function test_the_allocation_editor_moves_the_budget_and_its_slots_together(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $semester] = $this->scheduledProgramme();
+        $item = $annual->items()->first();
+        // Start from 7 + 1 against an 8 JP budget, then move to 6 + 4 at 10 JP.
+        app(SemesterProgrammeService::class)->addSlot($semester, $item, ['week_label' => 'Week 2', 'planned_lesson_periods' => 1]);
+        app(SemesterProgrammeService::class)->rebalance($item, $semester->fresh()->items()->get()
+            ->mapWithKeys(fn ($s) => [$s->id => $s->position === 1 ? 7 : 1])->all());
+        app(SemesterProgrammeService::class)->activate($semester->fresh());
+
+        $slots = $semester->fresh()->items()->get()->values();
+
+        Livewire::actingAs($this->userWithRole('principal'))
+            ->test(SemesterProgrammeShow::class, ['semesterProgramme' => $semester->fresh()])
+            ->call('startRebalancing', $item->id)
+            ->assertSet('allocation_budget', '8')
+            ->set('allocation_budget', '10')
+            ->set('allocation.'.$slots[0]->id, '6')
+            ->set('allocation.'.$slots[1]->id, '4')
+            ->call('saveAllocation')
+            ->assertHasNoErrors();
+
+        $this->assertSame(10, $item->fresh()->planned_lesson_periods);
+        $this->assertSame([6, 4], $semester->fresh()->items()->get()->pluck('planned_lesson_periods')->all());
+    }
+
+    public function test_the_allocation_editor_reports_a_mismatch_rather_than_writing_it(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $semester] = $this->scheduledProgramme();
+        app(SemesterProgrammeService::class)->activate($semester->fresh());
+        $item = $annual->items()->first();
+        $slot = $semester->fresh()->items()->first();
+
+        Livewire::actingAs($this->userWithRole('principal'))
+            ->test(SemesterProgrammeShow::class, ['semesterProgramme' => $semester->fresh()])
+            ->call('startRebalancing', $item->id)
+            ->set('allocation.'.$slot->id, '5')
+            ->call('saveAllocation')
+            ->assertHasErrors('items');
+
+        $this->assertSame(8, $slot->fresh()->planned_lesson_periods);
+    }
+
+    public function test_the_prota_screen_refuses_to_archive_over_a_live_semester_plan(): void
+    {
+        $this->seedReferenceData();
+        [$annual, $semester] = $this->scheduledProgramme();
+        app(SemesterProgrammeService::class)->activate($semester->fresh());
+
+        Livewire::actingAs($this->userWithRole('principal'))
+            ->test(AnnualProgrammeShow::class, ['annualProgramme' => $annual])
+            ->call('archive')
+            ->assertHasErrors('status');
+
+        $this->assertTrue($annual->fresh()->isActive());
+    }
+
     // ------------------------------------------------------------- entry
 
     public function test_the_index_lists_programmes_for_the_chosen_year(): void

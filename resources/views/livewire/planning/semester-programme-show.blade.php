@@ -58,8 +58,40 @@
                                     <span class="text-red-600">&middot; {{ $s->scheduled }}/{{ $s->budget }} JP</span>
                                 @endif
                             @endif
+                            @if ($canEdit && $s->slots > 0)
+                                <button type="button" wire:click="startRebalancing({{ $item->id }})" class="ml-1 font-medium text-brand-navy hover:underline">Edit allocation</button>
+                            @endif
                         @endif
                     </span>
+
+                    {{-- All of one objective's slots at once: an active plan
+                         cannot pass through 2+1+4 on its way to 3+1+4. --}}
+                    @if ($rebalancingItemId === $item->id)
+                        <form wire:submit="saveAllocation" class="mt-2 w-full space-y-2 rounded-lg bg-slate-50 p-3">
+                            <p class="text-xs text-slate-600">
+                                The annual budget and its distribution change together, so the plan is never briefly out of step.
+                            </p>
+                            <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                                <span class="w-28 flex-shrink-0 text-xs font-medium text-slate-700">Annual budget</span>
+                                <input type="number" min="1" wire:model="allocation_budget"
+                                    class="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                <span class="text-xs text-slate-500">JP</span>
+                            </div>
+                            @error('allocation_budget') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                            @foreach ($scheduleSlots->where('annual_programme_item_id', $item->id) as $slot)
+                                <div class="flex items-center gap-2">
+                                    <span class="w-28 flex-shrink-0 truncate text-xs text-slate-600">{{ $slot->week_label ?? 'Slot '.$slot->position }}</span>
+                                    <input type="number" min="1" wire:model="allocation.{{ $slot->id }}"
+                                        class="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                    <span class="text-xs text-slate-500">JP</span>
+                                </div>
+                            @endforeach
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Save allocation</button>
+                                <button type="button" wire:click="cancel" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-white">Cancel</button>
+                            </div>
+                        </form>
+                    @endif
                 </li>
             @endforeach
         </ul>

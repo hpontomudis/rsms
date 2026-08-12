@@ -32,6 +32,8 @@ class AnnualProgrammeShow extends Component
 
     public string $item_notes = '';
 
+    public ?int $editingItemId = null;
+
     public function mount(AnnualProgramme $annualProgramme): void
     {
         $this->authorize('view', $annualProgramme);
@@ -58,8 +60,52 @@ class AnnualProgrammeShow extends Component
             $validated['item_notes'] !== '' ? $validated['item_notes'] : null,
         );
 
-        $this->reset(['learning_pathway_item_id', 'academic_period_id', 'planned_lesson_periods', 'item_notes', 'showAddItem']);
+        $this->cancel();
         $this->annualProgramme->refresh();
+    }
+
+    /** Adjust an existing allocation: its period, its JP budget, or its note. */
+    public function startEditingItem(int $itemId): void
+    {
+        $this->authorize('update', $this->annualProgramme);
+
+        $item = $this->annualProgramme->items()->findOrFail($itemId);
+
+        $this->showAddItem = false;
+        $this->editingItemId = $item->id;
+        $this->academic_period_id = (string) $item->academic_period_id;
+        $this->planned_lesson_periods = (string) ($item->planned_lesson_periods ?? '');
+        $this->item_notes = $item->notes ?? '';
+        $this->resetErrorBag();
+    }
+
+    public function saveItem(AnnualProgrammeService $programmes): void
+    {
+        $this->authorize('update', $this->annualProgramme);
+
+        $validated = $this->validate([
+            'academic_period_id' => ['required', 'exists:academic_periods,id'],
+            'planned_lesson_periods' => ['nullable', 'integer', 'min:1'],
+            'item_notes' => ['nullable', 'string'],
+        ]);
+
+        $programmes->updateItem(
+            $this->annualProgramme->items()->findOrFail($this->editingItemId),
+            AcademicPeriod::findOrFail($validated['academic_period_id']),
+            $validated['planned_lesson_periods'] !== '' && $validated['planned_lesson_periods'] !== null
+                ? (int) $validated['planned_lesson_periods'] : null,
+            touchBudget: true,
+            notes: $validated['item_notes'],
+        );
+
+        $this->cancel();
+        $this->annualProgramme->refresh();
+    }
+
+    public function cancel(): void
+    {
+        $this->reset(['showAddItem', 'editingItemId', 'learning_pathway_item_id', 'academic_period_id', 'planned_lesson_periods', 'item_notes']);
+        $this->resetErrorBag();
     }
 
     public function removeItem(int $itemId, AnnualProgrammeService $programmes): void
@@ -116,6 +162,11 @@ class AnnualProgrammeShow extends Component
                 ->groupBy('academic_period_id'),
             'semesterProgrammes' => $this->annualProgramme->semesterProgrammes()
                 ->get()->keyBy('academic_period_id'),
+            // Periods whose semester plan is in force: allocation changes there
+            // must go through that plan, so the screen says so up front rather
+            // than only when a write is refused.
+            'lockedPeriods' => $this->annualProgramme->semesterProgrammes()
+                ->where('status', 'active')->pluck('academic_period_id'),
             // Only pathway items not already allocated.
             'addableItems' => $this->showAddItem
                 ? $this->annualProgramme->learningPathway->items()->with('learningObjective')->get()

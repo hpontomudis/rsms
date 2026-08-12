@@ -116,6 +116,13 @@
                 </div>
             </div>
 
+            @if ($lockedPeriods->contains($period->id) && $canEdit)
+                <p class="mb-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600 ring-1 ring-slate-200">
+                    {{ $period->name }}'s semester plan is in force. New objectives and budget changes have to go through
+                    that plan, so it never falls out of step with this one.
+                </p>
+            @endif
+
             @forelse ($items as $item)
                 <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 py-2 last:border-0">
                     <div class="min-w-0">
@@ -130,11 +137,47 @@
                                 &middot; scheduled in {{ $item->semesterItems->count() }} {{ Str::plural('slot', $item->semesterItems->count()) }}
                             @endif
                         </p>
+                        @if ($item->notes)<p class="mt-0.5 text-xs italic text-slate-500">{{ $item->notes }}</p>@endif
                     </div>
-                    @if ($canEdit && $item->semesterItems->isEmpty())
-                        <button type="button" wire:click="removeItem({{ $item->id }})"
-                            wire:confirm="Remove this objective from the annual plan?"
-                            class="flex-shrink-0 text-xs text-red-500 hover:text-red-700">Remove</button>
+                    @if ($canEdit)
+                        <div class="flex flex-shrink-0 gap-2 text-xs">
+                            <button type="button" wire:click="startEditingItem({{ $item->id }})" class="font-medium text-brand-navy hover:underline">Edit</button>
+                            @if ($item->semesterItems->isEmpty())
+                                <button type="button" wire:click="removeItem({{ $item->id }})"
+                                    wire:confirm="Remove this objective from the annual plan?"
+                                    class="text-red-500 hover:text-red-700">Remove</button>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if ($editingItemId === $item->id)
+                        <form wire:submit="saveItem" class="w-full space-y-3 rounded-lg bg-slate-50 p-3">
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-slate-600">Period</label>
+                                    <select wire:model="academic_period_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                        @foreach ($periods as $p)
+                                            <option value="{{ $p->id }}">{{ $p->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-slate-600">JP budget</label>
+                                    <input type="number" min="1" wire:model="planned_lesson_periods" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                    <p class="mt-1 text-xs text-slate-500">Blank removes the budget, and with it the reconciliation rule.</p>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Note (optional)</label>
+                                <input type="text" wire:model="item_notes" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                            </div>
+                            @error('academic_period_id') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                            @error('planned_lesson_periods') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                            <div class="flex flex-wrap gap-2">
+                                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Save</button>
+                                <button type="button" wire:click="cancel" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-white">Cancel</button>
+                            </div>
+                        </form>
                     @endif
                 </div>
             @empty

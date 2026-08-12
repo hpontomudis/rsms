@@ -4,6 +4,56 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 5E refinement: the active-plan invariant
+
+Phase 5E allows an active Prota and an active Prosem to stay editable. That is the right call operationally, but it left one gap: neither layer was stopping the other from being edited into a state that contradicted it. An active semester plan could be left incomplete or unreconciled by a later annual edit, and vice versa. This closes that.
+
+### The invariant
+An ACTIVE semester programme must satisfy all of the following, continuously and not only at activation:
+- every annual item allocated to its period has at least one slot
+- every slot belongs to an annual item allocated to that same period
+- where an annual item carries a JP budget, every one of its slots states its own JP and they sum to exactly that budget
+- slot dates fall inside the period
+- slot positions are contiguous 1..n
+
+### How it is enforced
+- The activation gate was extracted into `SemesterProgrammeService::assertPlanIsComplete()` and is now **re-run after every mutation** -- add slot, edit slot, remove slot, reorder, rebalance -- inside the same transaction, so a violation rolls the edit back. The state is **re-read from the database rather than simulated**, so there is no second model of the rules to drift out of step with the first.
+- A DRAFT plan is deliberately exempt: it may be incomplete while it is prepared, and activation remains the gate. Structural integrity (period, dates, parent item, deterministic positions) still applies to a draft.
+- An ARCHIVED plan is untouched by any of this. Nothing cascades onto historical rows.
+
+### Annual-side protections
+- **Adding an objective to a period whose plan is in force is refused**, rather than silently making that plan incomplete: *"Semester 1 already has an active Semester Programme. Add this objective through a planning revision that also schedules it."* No slot is invented and the semester plan is never pushed back to draft on the teacher's behalf.
+- **Moving an unscheduled objective into such a period is refused** for the same reason. Moving a scheduled one out was already refused.
+- **Removing a scheduled objective stays blocked**, with the FK RESTRICT as the backstop behind the readable error. An unscheduled one still removes normally, from a draft or an active parent.
+- **Changing an annual JP budget** where the period's plan is in force requires the existing slots to already state their JP and sum to the new figure: *"This item is scheduled for 8 JP in the active Semester Programme. Update the semester allocation before changing the annual budget to 10 JP."* Clearing the budget to NULL is always allowed -- it removes the reconciliation requirement without falsifying any slot.
+
+### The rebalance workflow
+Enforcing the invariant makes sequential editing impossible for two legitimate operations, so one atomic operation covers both: `SemesterProgrammeService::rebalance()` restates an objective's whole allocation -- its annual budget and every one of its slots -- in a single transaction.
+- 2+2+4 to 3+1+4 cannot be done slot by slot, because 3+2+4 does not reconcile.
+- **Raising a budget from 8 to 10 is impossible from either side alone** -- change the slots and they disagree with 8, change the budget and it disagrees with the slots. This was found by a test written to prove the documented two-step worked; it did not. Both facts now move together or neither does.
+- A partial map is rejected: the caller states every slot, so the total is deliberate. No revision or version subsystem was built.
+- The Prosem screen exposes this as one **"Edit allocation"** action per objective, with the annual budget and all its slots in a single form.
+
+### Archive lifecycle
+- Archiving is now **bottom-up**: an annual programme refuses to archive while a child semester programme is still active, naming the period. An archived annual programme is read-only, so a live schedule beneath one would be a plan nobody could correct.
+- Nothing cascades. Archived semester programmes keep every row exactly as it was, verified by comparing slot state before and after the parent was archived.
+
+### Also
+- `AnnualProgrammeShow` gained an **Edit** action for an allocation's period, budget and note. The `updateItem` service method existed since Phase 5E but had no UI, so the JP rule it enforces was unreachable from the screen.
+- The Prota screen names periods whose semester plan is in force, so the restriction is visible before a write is refused rather than only after.
+
+### Fixed
+- **The Phase 5E completion report said "50 migrations"; the real count is 55.** Phase 5D ended at 50 and Phase 5E added five. Verified against both `database/migrations` and `migrate:status`. Documentation was corrected; no migration history was touched.
+- `PROJECT_STATUS.md` listed the audit-trail models with three duplicated entries and none of the four planning models, and its per-area test list repeated seven areas twice while stating a stale total.
+
+### Tests
+- New `PlanningInvariantTest` (39 tests) covering every case in the refinement brief plus the audit consequences: a refused edit writes no audit row, and a successful rebalance writes exactly one per *changed* slot. `PlanningUiTest` grew to 25 with the same rules exercised through the screens. Suite: 510 to 555 passing.
+
+### Verification
+- Isolated `rahai_sms_verify` database on PostgreSQL, from the specification's fixture (8 JP as 2+2+4): parent 8 to 10, slot 4 to 3, removing a required slot, adding a new objective to the live period, and archiving the annual programme were **all refused with the plan intact**; then 2+2+4 to 3+1+4, a combined move to 4+2+4 at 10 JP, and a week-label edit all succeeded; then archive-Prosem-then-Prota succeeded and the archived plan refused further writes. Repeated through the browser at 375px, including the rejected and accepted allocation submissions. Audit counts matched exactly what was actually committed. Database dropped and the development environment restored.
+
+---
+
 ## 2026-08-12 - Phase 5E: Annual + Semester Programmes (Prota + Prosem)
 
 ### The planning contract

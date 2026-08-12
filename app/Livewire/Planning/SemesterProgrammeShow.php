@@ -36,6 +36,15 @@ class SemesterProgrammeShow extends Component
 
     public ?int $editingSlotId = null;
 
+    /** Annual item whose whole JP distribution is being edited at once. */
+    public ?int $rebalancingItemId = null;
+
+    /** @var array<int, string> slot id => JP */
+    public array $allocation = [];
+
+    /** The annual budget, edited alongside its distribution. */
+    public string $allocation_budget = '';
+
     public function mount(SemesterProgramme $semesterProgramme): void
     {
         $this->authorize('view', $semesterProgramme);
@@ -128,6 +137,56 @@ class SemesterProgrammeShow extends Component
         $this->semesterProgramme->refresh();
     }
 
+    /**
+     * Edit every slot of one objective together.
+     *
+     * Sequential single-slot edits cannot move an active plan from 2+2+4 to
+     * 3+1+4 -- each intermediate state breaks reconciliation and is refused --
+     * so the whole distribution is submitted in one go.
+     */
+    public function startRebalancing(int $itemId): void
+    {
+        $this->authorize('update', $this->semesterProgramme);
+
+        $item = $this->semesterProgramme->annualProgramme->items()->findOrFail($itemId);
+
+        $this->cancel();
+        $this->rebalancingItemId = $item->id;
+        $this->allocation_budget = (string) ($item->planned_lesson_periods ?? '');
+        $this->allocation = $item->semesterItems()->orderBy('position')->get()
+            ->mapWithKeys(fn ($slot) => [$slot->id => (string) ($slot->planned_lesson_periods ?? '')])
+            ->all();
+    }
+
+    public function saveAllocation(SemesterProgrammeService $semesters): void
+    {
+        $this->authorize('update', $this->semesterProgramme);
+
+        $this->validate([
+            'allocation_budget' => ['nullable', 'integer', 'min:1'],
+            'allocation.*' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $item = $this->semesterProgramme->annualProgramme->items()->findOrFail($this->rebalancingItemId);
+
+        $semesters->rebalance(
+            $item,
+            array_map(fn ($value) => $value === '' || $value === null ? null : (int) $value, $this->allocation),
+            budget: $this->allocation_budget !== '' ? (int) $this->allocation_budget : null,
+            // The budget and its distribution are one decision, so the annual
+            // figure is editable here rather than only on the Prota screen.
+            touchBudget: $this->canEditAnnual(),
+        );
+
+        $this->cancel();
+        $this->semesterProgramme->refresh();
+    }
+
+    private function canEditAnnual(): bool
+    {
+        return auth()->user()->can('update', $this->semesterProgramme->annualProgramme);
+    }
+
     public function activate(SemesterProgrammeService $semesters): void
     {
         $this->authorize('transition', $this->semesterProgramme);
@@ -153,6 +212,7 @@ class SemesterProgrammeShow extends Component
         $this->reset([
             'showAddSlot', 'editingSlotId', 'annual_programme_item_id', 'week_label',
             'planned_start_date', 'planned_end_date', 'planned_lesson_periods', 'slot_notes',
+            'rebalancingItemId', 'allocation', 'allocation_budget',
         ]);
         $this->resetErrorBag();
     }
