@@ -273,10 +273,10 @@ Features:
 
 Mobile-first: cards rather than a wide table, so at 375px a teacher sees roster, subject, status and the Assessments action without scrolling sideways.
 
-Card layout is deliberately shaped to take more actions later — ATP, Prota, Prosem, Teaching Modules, Daily Journal — but **only Assessments exists today**. No placeholder buttons or dead routes were created.
+Card layout is deliberately shaped to take more actions as they are built. *Updated in Phase 5E:* cards now carry **Assessments**, the **Annual Programme** (with its status), and the **Semester Programme** for the period containing today; a card with no plan offers to start one. Teaching Modules and Daily Journals still do not exist, and no placeholder buttons or dead routes were created for them.
 
 **Not implemented yet, deliberately:**
-- ATP, Prota, Prosem, Teaching Modules, Daily Journal — the future actions this workspace is shaped for. None exist.
+- Teaching Modules and Daily Journal — the remaining future actions this workspace is shaped for.
 - Teacher scoping through teaching groups. `StudentPolicy` is unchanged: teaching a group grants a teacher no access to its students' profiles.
 - English proficiency-progress reporting (a level history across the year) and printable/Kindergarten report formats — both belong to the later Reporting & Document Generation work.
 
@@ -290,8 +290,8 @@ Proposed features:
 - **Capaian Pembelajaran (CP):** linked to curriculum + subject + optional grade; admin-managed
 - **Tujuan Pembelajaran (TP):** implemented in Phase 5C — see below. *Corrected: an earlier draft said a TP is "linked to a CP" (one-to-many). It is many-to-many, because a TP often synthesises several CP elements.*
 - **Alur Tujuan Pembelajaran (ATP):** an ordered sequence of TP **within one curriculum scope and subject** (a learning phase, or an English level), via header + `atp_items`. *Corrected in Phase 5C: an earlier draft of this document said an ATP belonged directly to a teaching assignment (`class_subject`). It does not. A Phase C ATP spans Year 5 and Year 6, so it cannot be owned by one class's assignment; teaching assignments will SELECT an ATP, and several may use the same one.*
-- **Program Tahunan (Prota):** belongs to a teaching assignment and an academic year, SELECTS one learning pathway, and carries its own allocation items mapping pathway items to periods. *Corrected in Phase 5D: an earlier draft called Prota “a thin wrapper with no items of its own”. That cannot work — a Phase C pathway spans Year 5 and Year 6, so something must record which portion each assignment covers and when. Grade and academic period enter the architecture here, not in the pathway.*
-- **Program Semester (Prosem):** semester-level plan (week-by-week items, free-text week labels rather than a rigid calendar) — teacher-managed
+- **Program Tahunan (Prota):** implemented in Phase 5E — see below. *Corrected twice: an earlier draft called Prota "a thin wrapper with no items of its own" (impossible — a Phase C pathway spans Year 5 and Year 6, so something must record which portion each roster covers and when), and a later one said it "belongs to a teaching assignment". It belongs to the **roster** — a class or a teaching group — so it survives a mid-year teacher handover. Grade and academic period enter the architecture here, not in the pathway.*
+- **Program Semester (Prosem):** implemented in Phase 5E — see below. Free-text week labels rather than a rigid calendar, and one allocated objective may take several slots.
 - **Modul Ajar (Teaching Module):** the richest record — links to CP/TP/ATP/an actual Assessment (optional), planning narrative fields (materials, methods, activities, assessment strategy, reflection, differentiation) — only `title` and the teaching assignment are required, everything else optional
 - **Jurnal Harian Guru (Daily Journal):** what was actually taught, distinct from the Module's plan; auto-derives teacher/subject/class/grade/year from the teaching assignment; optionally references a Teaching Module, an Attendance session (counts computed live, never copied), and an Assessment (scores stay in the existing assessment tables)
 - **Journal Dashboard:** "my teaching journal" calendar view, filterable by class/subject/date
@@ -420,12 +420,52 @@ Status: Complete
 **One application-level constraint, stated plainly:** draft item positions are kept contiguous (1..n) by the service after every add, remove and move, and re-validated at activation — but not by a database constraint. A partial unique index would have to know the parent's status, which SQL cannot see from an index predicate, and mirroring status onto every item purely to enable one index was judged worse than the rule living in the service. Raw SQL can still leave a draft gapped; `normalise()` repairs it.
 
 **Not implemented yet, deliberately:**
-- Prota / Prosem. Contract corrected above — grade and academic period enter there.
-- Any link from `class_subject` to a pathway. A teaching assignment will SELECT a pathway through Prota; it never owns one.
-- Prota, Prosem, Teaching Modules, Daily Journals.
+- Any link from `class_subject` to a pathway. A teaching assignment SELECTS a pathway through Prota; it never owns one.
+- Teaching Modules, Daily Journals.
 - Kindergarten developmental assessment and reporting.
 
-Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes, outcomes, objectives or pathways. Standards and teaching execution stay separate layers until TP/ATP connect them. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
+Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes, outcomes, objectives or pathways. Standards and teaching execution stay separate layers — the annual programme is where they meet a real roster. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
+
+#### Annual & Semester Programmes / Prota + Prosem *(Phase 5E)*
+Status: Complete
+
+`Curriculum → Scope → TP → Pathway → **Annual Programme → Semester Programme**`. On the national curriculum these are **Program Tahunan (Prota)** and **Program Semester (Prosem)**; on a Rahai English curriculum, **Annual Programme** and **Semester Programme**. Physically `annual_programmes` and `semester_programmes` — neutral naming, one engine.
+
+**The planning contract, stated once:**
+
+| Layer | Owns |
+|---|---|
+| ATP / Learning Pathway | the logical **sequence** of objectives within a scope + subject |
+| Prota | which objectives a **roster** covers, in **which academic period**, and the **JP budget** for that period |
+| Prosem | **when inside the period** — one or more scheduling slots per allocated objective |
+| Teaching Module *(future)* | **how** it will be taught |
+| Daily Journal *(future)* | **what actually happened** |
+
+No fact is stated twice. The pathway does not know about periods; Prota does not schedule weeks; Prosem does not re-order the pathway.
+
+**Prota is anchored to the ROSTER, never to a teaching assignment** — a class XOR a teaching group, plus subject, academic year and pathway. There is no `staff_id`. **A plan therefore survives teacher succession:** when Sarah hands Year 5A Mathematics to Eka mid-year, the plan does not move, get copied, or need recreating — same row, same allocations. Write access follows the *current* active assignment, so Eka can carry on editing the day her assignment opens while Sarah keeps read access to what she wrote. Authorship lives in the audit trail, not in an owner column.
+
+**JP (`planned_lesson_periods`) is a total for the period, not a weekly rate**, and there is no `planned_weeks` field — weeks are Prosem's business.
+
+**Prosem items are scheduling slots, deliberately one-to-many.** One allocated objective may occupy weeks 3, 4 and 6, so there is **no** unique index on `(semester_programme_id, annual_programme_item_id)`. `week_label` is a free string (`"Minggu Efektif 7"`), not a week number, because effective weeks are not calendar weeks. Slot `position` is kept contiguous by the service, the same application-level rule as pathway items.
+
+**JP reconciliation at activation:** if an allocation carries a JP budget, every one of its slots must carry its own JP and the slots must sum to exactly that budget. If the allocation has no budget, slots may be scheduled freely. Activation also requires every objective allocated to the period to have at least one slot. Both rules are surfaced continuously on the Prosem screen (`3 slots · 12/12 JP`), not only at the moment of refusal.
+
+**Integrity is database-enforced** by the same mirrored-discriminator + composite-FK pattern used since Phase 5B, here applied five times over: the roster must belong to the programme's academic year, the period must belong to that year, the pathway must match the mirrored curriculum scope and subject, an allocated item must belong to the programme's pathway, and a slot must belong to both its semester programme *and* the annual item's period. A CHECK enforces class XOR teaching group. Falsified discriminators are refused too. Partial unique indexes (`WHERE status = 'active'`) allow one active programme per roster + subject while draft and archived variants coexist.
+
+**Application-level eligibility** does what no foreign key can: resolving *class → grade → learning phase* or *teaching group → English level* and requiring it to equal the pathway's scope. Year 5A cannot follow a Phase D pathway; Green A cannot follow Blue's; a class cannot follow an English path at all.
+
+**Moving an allocation to another period is refused while it is scheduled** — the composite key would reject it anyway, so the service turns a constraint violation into a sentence.
+
+**An active plan stays editable** — a deliberate inversion of the standards layer's immutability. A school year genuinely shifts, and rebuilding the year for a lost week would be worse than allowing audited edits. What is frozen is *identity* (roster, subject, year, scope, pathway), never allocation. Archived is read-only; only an unused draft may be deleted.
+
+**Authorisation:** teachers with `academics.plan` may create and edit plans for rosters they *currently* teach; activation and archiving stay with `academics.manage`. Anyone with `academics.view` may read a plan — a plan is a public statement of what a class will be taught, not private teacher work.
+
+**Teacher Workspace integration:** `/my-teaching` cards now expose Assessments, the Annual Programme (with status), and, for the period containing today, the Semester Programme. A card with no plan offers to start one, prefilled from the assignment.
+
+**Not implemented yet, deliberately:**
+- Teaching Modules and Daily Journals — the "how" and the "actual". The Prota screen says so on the page rather than implying completeness.
+- Document generation for Prota/Prosem (V6).
 
 ---
 

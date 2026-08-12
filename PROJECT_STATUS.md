@@ -1,7 +1,7 @@
 # Project Status
 
-**Current Version:** V5.4 — Phase 5 **Steps 0-2e complete**, plus **Phase 5A–5D** (Curriculum foundation, Scopes + CP, TP, and ATP); Prota, Prosem and the remaining planning entities not started
-**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration), 2d (report-card discovery), 2e (teacher workspace), Phase 5A (curriculum registry + learning phases), Phase 5B (curriculum scopes + learning outcomes), Phase 5C (learning objectives) and Phase 5D (learning pathways) are implemented, tested, and verified.** Prota, Prosem, Teaching Modules and Daily Journals are approved in design but **not started** — awaiting explicit go-ahead.
+**Current Version:** V5.5 — Phase 5 **Steps 0-2e complete**, plus **Phase 5A–5E** (Curriculum foundation, Scopes + CP, TP, ATP, and Prota + Prosem); Teaching Modules and Daily Journals not started
+**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration), 2d (report-card discovery), 2e (teacher workspace), Phase 5A (curriculum registry + learning phases), Phase 5B (curriculum scopes + learning outcomes), Phase 5C (learning objectives), Phase 5D (learning pathways) and Phase 5E (annual + semester programmes) are implemented, tested, and verified.** Teaching Modules and Daily Journals are approved in design but **not started** — awaiting explicit go-ahead.
 **Last verified:** 2026-08-12 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
@@ -17,24 +17,25 @@
 - **Staff position type-to-add (V4.2):** free-type-or-pick position field; added Support Staff / Building Staff to defaults
 - **English Programmes (V4.5 / Phase 5 Step 2a-i):** proficiency frameworks (Primary colour levels, Junior High Level A/B/C) with per-programme level ordering, archive-not-delete levels, and grade applicability
 - **Teaching Assignments for groups (V4.8–V5.0-pre / Phase 5 Steps 2b + 2c + 2d):** `class_subject` extended so an assignment is backed by an administrative class **or** a teaching group, with Step 0 close-and-create handover; and unified roster/year/display accessors so the existing assessment engine serves both identically; and report-card discovery across both roster sources, merged by subject.
+- **Annual & Semester Programmes / Prota + Prosem (V5.5 / Phase 5E):** the planning contract in full — ATP owns sequence, Prota owns which objectives a roster covers in which academic period and their JP budget, Prosem owns when inside the period. Prota is anchored to the **roster** (class XOR teaching group), not to a teaching assignment, so **a plan survives teacher succession**: the plan stays put and write access follows the current assignment. Prosem items are one-to-many scheduling slots, and activation reconciles their JP against the annual budget. Active plans stay editable; identity does not.
 - **Learning Pathways / ATP (V5.4 / Phase 5D):** linear ordered routes through one curriculum scope + subject; several may be active as alternatives; item integrity database-enforced; teachers author drafts scoped by their real active teaching assignments, management activates.
 - **Learning Objectives / TP (V5.3 / Phase 5C):** `CP ↔ TP` many-to-many within one scope and subject, enforced by composite foreign keys with no application-level gap. TP carries its own draft/active/archived lifecycle so objectives can be authored while a curriculum is in force; activation requires at least one CP link.
 - **Curriculum Scopes & Learning Outcomes (V5.2 / Phase 5B):** `Curriculum → Scope → Learning Outcome`, one engine for national CP (scoped by Learning Phase) and Rahai English outcomes (scoped by English Level). Cross-programme scoping refused by the database; content immutable once a version leaves draft.
 - **Curriculum & Learning Phase foundation (V5.1 / Phase 5A):** seven seeded national learning phases mapped to grades (Foundation → Kindergarten 1-2, A → Year 1-2, B → Year 3-4, C → Year 5-6, D → Year 7-9, E → Year 10, F → Year 11-12), and a versioned curriculum registry with archive-and-create version lifecycle. Reference layer only — no CP, TP or scopes.
-- **Teacher Workspace (V5.0-pre / Phase 5 Step 2e):** `/my-teaching` — a teacher's own classes and teaching groups in one list, active and historical, with Assessments as the single available action. Closes the Step 2c navigation gap without widening any policy.
+- **Teacher Workspace (V5.0-pre / Phase 5 Step 2e, extended in 5E):** `/my-teaching` — a teacher's own classes and teaching groups in one list, active and historical. Assessments was the single action at 2e; Phase 5E added the Annual Programme and the current Semester Programme. Closes the Step 2c navigation gap without widening any policy.
 - **Teaching Groups & English Placement (V4.6 / Phase 5 Step 2a-ii):** year-scoped groups (English or generic), effective-dated membership with rejoin history, and per-student assessed proficiency kept deliberately independent of which group they attend
 
 ## In Progress
 
-- **Phase 5 Steps 0-2e, Phase 5A, 5B, 5C and 5D are complete.** Nothing else is in progress; Prota / Prosem await approval.
+- **Phase 5 Steps 0-2e, Phase 5A, 5B, 5C, 5D and 5E are complete.** Nothing else is in progress; Teaching Modules / Daily Journals await approval.
 
 ## Next (pending user instruction)
 
 - Teacher scoping through teaching groups (`StudentPolicy`), deferred until a teaching assignment can authorize it.
-- Phase 5E onward: Prota (annual programme per teaching assignment + academic year, selecting one pathway and allocating its items) → Prosem → Teaching Modules → Daily Journals. Grade and academic period enter the architecture at Prota.
+- Phase 5F onward: Teaching Modules (the "how") → Daily Journals (the "actual"). Both sit below Prosem in the planning contract and add no new allocation facts.
 - Kindergarten developmental assessment and reporting — deliberately separate from the numeric assessment model.
 - Later cleanup migration: drop the deprecated `assessments.term` column once the new architecture has proven stable.
-- The "successor teacher can read predecessor planning" test is deliberately deferred to the ATP step, since no Phase 5 planning entity exists yet to test against.
+- ~~The "successor teacher can read predecessor planning" test is deferred until a planning entity exists.~~ **Done in Phase 5E** — `PlanningUiTest::test_a_successor_sees_the_predecessors_plan_on_her_own_card` covers both directions: Eka gains write access, Sarah keeps read access.
 - Scope and build Excel import/export (Students first) — waiting on admin staff to confirm what data/columns their existing spreadsheets contain.
 - Communication module (now V7, renumbered to make room for Phase 5) — not started, no detailed scope yet.
 

@@ -3,6 +3,7 @@
 namespace App\Livewire\Teaching;
 
 use App\Models\AcademicYear;
+use App\Models\AnnualProgramme;
 use App\Models\Assessment;
 use App\Models\ClassSubject;
 use App\Models\Staff;
@@ -80,6 +81,11 @@ class MyAssignments extends Component
                 ->sortByDesc('ended_on')->values();
         }
 
+        // Plans are anchored to the roster, so they are looked up by roster and
+        // subject -- not by assignment id. A successor sees the predecessor's
+        // plan here, which is the entire point of that anchoring.
+        $programmes = $this->programmesFor($active->merge($historical));
+
         return view('livewire.teaching.my-assignments', [
             'problem' => $problem,
             'active' => $active,
@@ -89,7 +95,48 @@ class MyAssignments extends Component
             'rosterCount' => fn (ClassSubject $assignment) => $assignment
                 ->rosterOn($assignment->ended_on ?? now())
                 ->count(),
+            'programmeFor' => fn (ClassSubject $assignment) => $programmes->get($this->rosterKey($assignment)),
+            'canPlan' => Auth::user()->can('academics.plan') || Auth::user()->can('academics.manage'),
         ]);
+    }
+
+    /** The roster identity a plan is anchored to: source, id and subject. */
+    private function rosterKey(ClassSubject $assignment): string
+    {
+        return ($assignment->class_id ? 'c'.$assignment->class_id : 'g'.$assignment->teaching_group_id)
+            .':'.$assignment->subject_id;
+    }
+
+    /**
+     * One annual programme per roster and subject, keyed for the cards.
+     *
+     * Several may legitimately exist -- an archived plan beside this year's --
+     * so the operative one wins: active, then draft, then archived.
+     *
+     * @return \Illuminate\Support\Collection<string, AnnualProgramme>
+     */
+    private function programmesFor($assignments)
+    {
+        if ($assignments->isEmpty()) {
+            return collect();
+        }
+
+        $rank = ['active' => 0, 'draft' => 1, 'archived' => 2];
+
+        return AnnualProgramme::query()
+            ->whereIn('subject_id', $assignments->pluck('subject_id')->unique())
+            ->where(function ($query) use ($assignments) {
+                $classIds = $assignments->pluck('class_id')->filter()->unique();
+                $groupIds = $assignments->pluck('teaching_group_id')->filter()->unique();
+
+                $query->when($classIds->isNotEmpty(), fn ($q) => $q->orWhereIn('class_id', $classIds))
+                    ->when($groupIds->isNotEmpty(), fn ($q) => $q->orWhereIn('teaching_group_id', $groupIds));
+            })
+            ->with(['semesterProgrammes.academicPeriod'])
+            ->get()
+            ->sortBy(fn (AnnualProgramme $p) => $rank[$p->status] ?? 9)
+            ->groupBy(fn (AnnualProgramme $p) => ($p->class_id ? 'c'.$p->class_id : 'g'.$p->teaching_group_id).':'.$p->subject_id)
+            ->map(fn ($group) => $group->first());
     }
 
     /**

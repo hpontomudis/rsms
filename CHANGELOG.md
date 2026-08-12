@@ -4,6 +4,64 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 5E: Annual + Semester Programmes (Prota + Prosem)
+
+### The planning contract
+Each layer owns exactly one kind of fact, and no fact is stated twice:
+
+| Layer | Owns |
+|---|---|
+| ATP / Learning Pathway | the logical **sequence** of objectives within a scope + subject |
+| Prota | which objectives a **roster** covers, in **which academic period**, and the **JP budget** for that period |
+| Prosem | **when inside the period** - one or more scheduling slots per allocated objective |
+| Teaching Module *(not built)* | **how** it will be taught |
+| Daily Journal *(not built)* | **what actually happened** |
+
+### Added
+- **`annual_programmes`** - Program Tahunan nationally, Annual Programme on a Rahai English curriculum. Anchored to a class XOR a teaching group, plus subject, academic year, curriculum scope and pathway.
+- **`annual_programme_items`** - one pathway objective allocated to one academic period, with an optional JP budget and notes.
+- **`semester_programmes`** - one per annual programme and period.
+- **`semester_programme_items`** - the scheduling slots, with `position`, free-text `week_label`, optional dates and JP.
+- **`AnnualProgrammeService`** and **`SemesterProgrammeService`**; **`AnnualProgrammePolicy`** and **`SemesterProgrammePolicy`**.
+- Planning screens at `/planning`, plus Prota and Prosem screens; sidebar entry; `annual`/`semester` added to the curriculum vocabulary so National reads *Program Tahunan (Prota)* / *Program Semester (Prosem)* and English reads *Annual Programme* / *Semester Programme*.
+- Teacher Workspace cards now carry the Annual Programme, the Semester Programme for the period containing today, and an offer to start a plan where none exists.
+
+### Teacher succession
+- **A Prota is anchored to the roster, never to a teaching assignment, and carries no `staff_id`.** When Sarah hands Year 5A Mathematics to Eka mid-year the plan does not move, get copied, or need recreating - same row, same allocations. Write access follows the *current* active assignment, so Eka continues editing the day her assignment opens while Sarah keeps read access to what she wrote. Authorship lives in the audit trail. Verified in the browser from both sides.
+
+### Integrity
+- The mirrored-discriminator + composite-FK pattern applied five more times: the roster must belong to the programme's year, the period must belong to that year, the pathway must match the mirrored scope and subject, an allocated item must belong to the programme's pathway, and a slot must belong to both its semester programme and the annual item's period. A CHECK enforces class XOR teaching group. Verified directly in SQL, falsified discriminators included: both-and-neither roster, wrong year, wrong scope, foreign period, duplicate pathway item and a Semester-2 item pushed into a Semester-1 plan were all refused.
+- **Deliberately no `UNIQUE(semester_programme_id, annual_programme_item_id)`** - one objective may legitimately occupy weeks 3, 4 and 6. Three slots for one allocation were confirmed to insert cleanly.
+- Partial unique indexes (`WHERE status = 'active'`) allow one active programme per roster + subject while drafts and archives coexist.
+- What no foreign key can see lives in the service: resolving *class → grade → learning phase* or *teaching group → English level* and requiring it to equal the pathway's scope. Year 5A cannot follow a Phase D pathway, Green A cannot follow Blue's, and a class cannot follow an English path at all. The creation screen only offers eligible pathways, and activation re-checks in case a class was re-graded since the draft.
+
+### Allocation and scheduling rules
+- JP is a **total for the period, not a weekly rate**; there is no `planned_weeks` field, because weeks are Prosem's business. `week_label` is a free string ("Minggu Efektif 7"), since effective weeks are not calendar weeks.
+- **JP reconciliation at activation:** if an allocation carries a budget, every one of its slots must carry its own JP and they must sum to exactly that budget; if it carries none, slots schedule freely. Activation also requires every objective allocated to the period to have at least one slot. Both are shown continuously on the screen (`3 slots · 12/12 JP`), not only at the moment of refusal.
+- Moving an allocation to another period is refused while it is scheduled - the composite key would reject it anyway, so the service turns a constraint violation into a sentence.
+- Slot positions are normalised to a contiguous 1..n, the same application-level rule as pathway items, and only changed rows are written.
+
+### Lifecycle
+- **An active plan stays editable** - a deliberate inversion of the standards layer. A school year genuinely shifts, and rebuilding the year for a lost week would be worse than audited edits. Identity (roster, subject, year, scope, pathway) is frozen at creation; allocation never is. Archived is read-only, and only an unused draft may be deleted.
+- Teachers with `academics.plan` create and edit plans for rosters they currently teach; activation and archiving stay with `academics.manage`. Anyone with `academics.view` may read a plan.
+
+### Fixed
+- A Blade `@else` glued to a word character (`JP@else`) rendered as literal text rather than a directive - found in the browser, not by the tests, which had asserted only on the substring that was present.
+- `$slots` passed as view data is silently shadowed by Blade's own named-slot bag in a component view; renamed to `$scheduleSlots`. The JP summary said "2 slots" while the list below it said "Nothing scheduled yet".
+- The "still editable" banner no longer shows to a reader who cannot edit.
+- `LearningPathwayTest::test_no_prota_or_prosem_tables_exist_yet` was a Phase 5D guard that this phase legitimately invalidates. Replaced with the boundary that still holds - a pathway item carries no allocation columns - plus a new guard that no Teaching Module or Daily Journal table exists.
+
+### Not implemented
+- Teaching Modules and Daily Journals. The Prota screen states this on the page rather than implying completeness.
+
+### Tests
+- `AnnualProgrammeTest` (36), `SemesterProgrammeTest` (30) and `PlanningUiTest` (19), with the shared fixture graph extracted into a `BuildsPlanningFixtures` trait so neither suite re-runs the other's tests. Suite: 424 to 510 passing.
+
+### Verification practice
+- Fresh PostgreSQL install and full browser walkthrough in an isolated `rahai_sms_verify` database - multi-grade Phase C across Year 5A and Year 6A, the Sarah-to-Eka handover from both sides, an English teaching group, three slots for one objective, a refused JP shortfall then its correction, and 375px with no horizontal overflow. Every planning write appeared in `audit_logs`. The database was dropped and the development environment restored; the development database was not touched.
+
+---
+
 ## 2026-08-12 - Phase 5D: Learning Pathways (ATP)
 
 ### Added

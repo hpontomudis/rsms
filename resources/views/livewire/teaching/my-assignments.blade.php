@@ -2,8 +2,10 @@
     // One card renderer for both roster sources -- the model already answers
     // "what is this called" and "what kind of thing is it", so the only
     // source-specific part is the English programme line.
-    $card = function ($assignment, bool $closed) use ($canAssess, $rosterCount) {
+    $card = function ($assignment, bool $closed) use ($canAssess, $rosterCount, $programmeFor) {
         $level = $assignment->teachingGroup?->englishLevel;
+        $plan = $programmeFor($assignment);
+
         return [
             'assignment' => $assignment,
             'level' => $level,
@@ -11,6 +13,11 @@
             'closed' => $closed,
             'canAssess' => $canAssess($assignment),
             'students' => $rosterCount($assignment),
+            'plan' => $plan,
+            // The semester plan for the period we are actually in, if it exists.
+            'currentSemester' => $plan?->semesterProgrammes->first(fn ($sp) =>
+                $sp->academicPeriod
+                && today()->between($sp->academicPeriod->start_date, $sp->academicPeriod->end_date)),
         ];
     };
 @endphp
@@ -75,6 +82,28 @@
                             </a>
                         @endif
                     </div>
+
+                    {{-- Planning. The plan belongs to the roster, so a teacher
+                         who took this over mid-year finds it already here. --}}
+                    @if ($c['plan'] || $canPlan)
+                        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-sm">
+                            @if ($c['plan'])
+                                <a href="{{ route('planning.annual.show', $c['plan']) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                                    Annual Programme
+                                </a>
+                                <x-status-badge :status="$c['plan']->status" />
+                                @if ($c['currentSemester'])
+                                    <a href="{{ route('planning.semester.show', $c['currentSemester']) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                                        Semester Programme &middot; {{ $c['currentSemester']->academicPeriod->name }}
+                                    </a>
+                                @endif
+                            @elseif ($canPlan)
+                                <a href="{{ route('planning.annual.create', ['class_subject_id' => $assignment->id]) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                                    + Start an annual programme
+                                </a>
+                            @endif
+                        </div>
+                    @endif
                 </div>
             @empty
                 <p class="rounded-lg bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
@@ -117,6 +146,16 @@
                                 </a>
                             @endif
                         </div>
+
+                        {{-- Still readable after a handover: the plan stayed with
+                             the class, and so did this teacher's view of it. --}}
+                        @if ($c['plan'])
+                            <div class="mt-3 border-t border-slate-200 pt-3 text-sm">
+                                <a href="{{ route('planning.annual.show', $c['plan']) }}" wire:navigate class="font-medium text-brand-navy hover:underline">
+                                    Annual Programme
+                                </a>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

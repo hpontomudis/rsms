@@ -12,6 +12,7 @@ use App\Livewire\FeeStructures;
 use App\Livewire\Guardians;
 use App\Livewire\Invoices;
 use App\Livewire\LearningPhases;
+use App\Livewire\Planning;
 use App\Livewire\Staff;
 use App\Livewire\Students;
 use App\Livewire\Subjects;
@@ -117,6 +118,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/', Subjects\Index::class)->name('index');
         Route::get('/create', Subjects\Create::class)->name('create');
         Route::get('/{subject}/edit', Subjects\Edit::class)->name('edit');
+    });
+
+    // Operating plans. Prota is anchored to a roster, so its URL carries the
+    // programme and never a teaching assignment.
+    Route::prefix('planning')->name('planning.')->group(function () {
+        Route::get('/', Planning\Index::class)->name('annual.index');
+        Route::get('/create', Planning\Create::class)->name('annual.create');
+        Route::get('/{annualProgramme}', Planning\AnnualProgrammeShow::class)->name('annual.show');
+        Route::get('/semester/{semesterProgramme}', Planning\SemesterProgrammeShow::class)->name('semester.show');
     });
 
     // A teacher's own assignments -- the entry point into assessment work for

@@ -107,12 +107,14 @@ class Curriculum extends Model
                 'objective' => 'Learning Objective', 'objectives' => 'Learning Objectives',
                 'pathway' => 'Learning Path', 'pathways' => 'Learning Paths',
                 'basis' => 'Level', 'bases' => 'Levels',
+                'annual' => 'Annual Programme', 'semester' => 'Semester Programme',
             ]
             : [
                 'outcome' => 'Capaian Pembelajaran (CP)', 'outcomes' => 'Capaian Pembelajaran (CP)',
                 'objective' => 'Tujuan Pembelajaran (TP)', 'objectives' => 'Tujuan Pembelajaran (TP)',
                 'pathway' => 'Alur Tujuan Pembelajaran (ATP)', 'pathways' => 'Alur Tujuan Pembelajaran (ATP)',
                 'basis' => 'Fase', 'bases' => 'Learning Phases',
+                'annual' => 'Program Tahunan (Prota)', 'semester' => 'Program Semester (Prosem)',
             ];
     }
 

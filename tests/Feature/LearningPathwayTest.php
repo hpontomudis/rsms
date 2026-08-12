@@ -89,9 +89,20 @@ class LearningPathwayTest extends TestCase
         );
     }
 
-    public function test_no_prota_or_prosem_tables_exist_yet(): void
+    public function test_a_pathway_carries_sequence_but_never_allocation(): void
     {
-        foreach (['annual_programmes', 'annual_programme_items', 'semester_programmes', 'protas', 'prosems'] as $table) {
+        // Prota (Phase 5E) owns when and how much; the pathway owns only order.
+        foreach (['academic_period_id', 'planned_lesson_periods', 'planned_start_date'] as $column) {
+            $this->assertFalse(
+                Schema::hasColumn('learning_pathway_items', $column),
+                "{$column} is an allocation fact and belongs to the annual programme"
+            );
+        }
+    }
+
+    public function test_teaching_module_and_journal_tables_do_not_exist_yet(): void
+    {
+        foreach (['teaching_modules', 'daily_journals', 'lesson_journals'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "{$table} belongs to a later phase");
         }
     }

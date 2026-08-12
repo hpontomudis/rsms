@@ -34,6 +34,7 @@
                 Route::has('subjects.index') && $user->can('academics.view') ? $navItem('subjects.index', 'Subjects', 'subjects') : null,
                 Route::has('english-programmes.index') && $user->can('academics.view') ? $navItem('english-programmes.index', 'English Programmes', 'subjects') : null,
                 Route::has('curricula.index') && $user->can('academics.view') ? $navItem('curricula.index', 'Curricula', 'subjects') : null,
+                Route::has('planning.annual.index') && $user->can('academics.view') ? $navItem('planning.annual.index', 'Annual Programmes', 'subjects', 'planning.*') : null,
                 Route::has('learning-phases') && $user->can('academics.view') ? $navItem('learning-phases', 'Learning Phases', 'subjects') : null,
                 // academics.manage, not academics.view: a group roster names students,
                 // and there is no teaching assignment yet to scope a teacher through.
