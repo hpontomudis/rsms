@@ -283,7 +283,7 @@ Card layout is deliberately shaped to take more actions later — ATP, Prota, Pr
 ### Planning Entities *(Phase 5 Step 2b onward)*
 Status: **Proposed** — architecture approved, no code
 
-Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data. *Corrected in Phase 5D: the standards and planning layers (Curriculum, CP, TP, ATP) are anchored to a **curriculum scope + subject**, not to `classsubject`. Only the execution layers (Prota onward, plus the existing Assessment) hang off a teaching assignment. That separation is what lets one Phase C pathway serve Year 5A, Year 5B and Year 6A without duplication.*
+Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data. *Corrected in Phase 5D: the standards and planning layers (Curriculum, CP, TP, ATP) are anchored to a **curriculum scope + subject**, not to `class_subject`. Only the execution layers (Prota onward, plus the existing Assessment) hang off a teaching assignment. That separation is what lets one Phase C pathway serve Year 5A, Year 5B and Year 6A without duplication.*
 
 Proposed features:
 - **Curriculum:** name/code/description, `status` (draft/active/archived) — admin-managed, framework-level, not tied to one academic year
