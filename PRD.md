@@ -72,7 +72,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
 | Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **Complete** — the full chain is built (Steps 0-2e, Phases 5A-5F). Session attendance, teacher student-scoping and Kindergarten developmental reporting remain out of scope |
-| Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
+| Reporting & Document Generation (printable Rapor + Prota/Prosem/ATP/Modul Ajar/Jurnal, and published Academic Records) | V6 | **Phase 6A complete** — browser-native print for all seven document types; issued report cards are immutable period-scoped snapshots. Attendance on the rapor, KG developmental reporting and a server-side PDF renderer remain out of scope |
 | Communication | V7 | Planned |
 | AI-assisted reporting | V8 | Planned |
 
@@ -141,7 +141,7 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V5.3 | Phase 5C — Learning Objectives (TP), many-to-many with CP | Complete |
 | V5.4 | Phase 5D — Learning Pathways (ATP), ordered TP sequences | Complete (current build) |
 | V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
-| V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
+| V6.0 | Reporting & Document Generation | **Phase 6A complete.** A LIVE report card is a view of current data; a PUBLISHED Academic Record (student + academic period) is a frozen snapshot taken at publish. Planning documents render canonically and store nothing. Print is browser-native — no PDF dependency, no stored files |
 | V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |
 | V8.0 | AI-assisted management | Not started (renumbered from V6) |
 

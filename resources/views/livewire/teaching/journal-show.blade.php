@@ -1,5 +1,8 @@
 <div class="mx-auto max-w-2xl space-y-4">
-    <a href="{{ route('teaching.journal.index', $dailyJournal->class_subject_id) }}" wire:navigate class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $vocabulary['journal'] }}</a>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <a href="{{ route('teaching.journal.index', $dailyJournal->class_subject_id) }}" wire:navigate class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $vocabulary['journal'] }}</a>
+        <a href="{{ route('documents.daily-journal', $dailyJournal) }}" target="_blank" class="text-sm font-medium text-brand-navy hover:underline">Print</a>
+    </div>
 
     <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <div class="flex flex-wrap items-start justify-between gap-2">

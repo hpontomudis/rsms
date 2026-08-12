@@ -1,5 +1,12 @@
 <?php
 
+use App\Documents\AnnualProgrammeDocumentBuilder;
+use App\Documents\DailyJournalDocumentBuilder;
+use App\Documents\LearningPathwayDocumentBuilder;
+use App\Documents\ReportCardDocumentBuilder;
+use App\Documents\SemesterProgrammeDocumentBuilder;
+use App\Documents\TeachingModuleDocumentBuilder;
+use App\Livewire\Academics;
 use App\Livewire\Academics\ReportCard;
 use App\Livewire\Assessments;
 use App\Livewire\Attendance;
@@ -18,8 +25,18 @@ use App\Livewire\Students;
 use App\Livewire\Subjects;
 use App\Livewire\Teaching;
 use App\Livewire\TeachingGroups;
+use App\Models\AcademicPeriod;
+use App\Models\AcademicRecord;
+use App\Models\AcademicYear;
+use App\Models\AnnualProgramme;
+use App\Models\DailyJournal;
+use App\Models\LearningPathway;
 use App\Models\Payment;
+use App\Models\SemesterProgramme;
+use App\Models\Student;
+use App\Models\TeachingModule;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -147,6 +164,69 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', Assessments\Create::class)->name('create');
         Route::get('/{assessment}', Assessments\Show::class)->name('show');
     });
+
+    /*
+     * PRINTED DOCUMENTS.
+     *
+     * Plain controller-free routes rather than Livewire components: a document
+     * is a one-shot render with its own layout and print stylesheet, and has no
+     * interactivity to justify a component. Each authorises before building.
+     */
+    Route::prefix('documents')->name('documents.')->group(function () {
+        Route::get('/students/{student}/report-card/year/{academicYear}', function (Student $student, AcademicYear $academicYear, ReportCardDocumentBuilder $builder) {
+            Gate::authorize('view', $student);
+            abort_unless(request()->user()->can('academics.view'), 403);
+
+            return view('documents.report-card', ['document' => $builder->fromLiveYear($student, $academicYear)]);
+        })->name('report-card.year');
+
+        Route::get('/students/{student}/report-card/period/{academicPeriod}', function (Student $student, AcademicPeriod $academicPeriod, ReportCardDocumentBuilder $builder) {
+            Gate::authorize('view', $student);
+            abort_unless(request()->user()->can('academics.view'), 403);
+
+            return view('documents.report-card', ['document' => $builder->fromLivePeriod($student, $academicPeriod)]);
+        })->name('report-card.period');
+
+        // The issued document. Reads snapshots only.
+        Route::get('/academic-records/{academicRecord}', function (AcademicRecord $academicRecord, ReportCardDocumentBuilder $builder) {
+            Gate::authorize('view', $academicRecord);
+            abort_if($academicRecord->isDraft(), 404);
+
+            return view('documents.report-card', ['document' => $builder->fromPublished($academicRecord->load('subjects'))]);
+        })->name('academic-record');
+
+        Route::get('/annual-programmes/{annualProgramme}', function (AnnualProgramme $annualProgramme, AnnualProgrammeDocumentBuilder $builder) {
+            Gate::authorize('view', $annualProgramme);
+
+            return view('documents.planning', ['document' => $builder->build($annualProgramme)]);
+        })->name('annual-programme');
+
+        Route::get('/semester-programmes/{semesterProgramme}', function (SemesterProgramme $semesterProgramme, SemesterProgrammeDocumentBuilder $builder) {
+            Gate::authorize('view', $semesterProgramme);
+
+            return view('documents.planning', ['document' => $builder->build($semesterProgramme)]);
+        })->name('semester-programme');
+
+        Route::get('/learning-pathways/{learningPathway}', function (LearningPathway $learningPathway, LearningPathwayDocumentBuilder $builder) {
+            abort_unless(request()->user()->can('academics.view'), 403);
+
+            return view('documents.planning', ['document' => $builder->build($learningPathway)]);
+        })->name('learning-pathway');
+
+        Route::get('/teaching-modules/{teachingModule}', function (TeachingModule $teachingModule, TeachingModuleDocumentBuilder $builder) {
+            Gate::authorize('view', $teachingModule);
+
+            return view('documents.planning', ['document' => $builder->build($teachingModule)]);
+        })->name('teaching-module');
+
+        Route::get('/daily-journals/{dailyJournal}', function (DailyJournal $dailyJournal, DailyJournalDocumentBuilder $builder) {
+            Gate::authorize('view', $dailyJournal);
+
+            return view('documents.planning', ['document' => $builder->build($dailyJournal)]);
+        })->name('daily-journal');
+    });
+
+    Route::get('/students/{student}/academic-records', Academics\AcademicRecords::class)->name('students.academic-records');
 
     Route::get('/payments/{payment}/receipt', function (Payment $payment) {
         abort_unless(request()->user()->can('finance.view'), 403);

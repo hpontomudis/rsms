@@ -511,11 +511,59 @@ The last two layers of the planning contract. On the national curriculum these a
 
 ---
 
-## V6 — Document Generation
+## V6 — Reporting & Document Generation
 
-Status: Not started (not scoped — deliberately deferred until V5 exists and is stable)
+### Phase 6A *(complete)*
 
-Long-term goal: structured V5 data → template → generated DOCX/PDF for Prota, Prosem, ATP, Modul Ajar, Jurnal Harian, Rapor, semester reports.
+**The distinction this phase exists to make:**
+
+| | LIVE Report Card | Published Academic Record |
+|---|---|---|
+| What it is | a view of current data | a record of what was issued |
+| Scope | student + academic **year** | student + academic **period** |
+| Changes when a score is corrected | yes, immediately | **no, ever** |
+| Printable | yes, watermarked *"Preview — not an issued record"* | yes, no watermark |
+| Storage | none | `academic_records` + `academic_record_subjects` |
+
+**The publication unit is the PERIOD**, because that is what a school issues and hands to a family. The year view remains a live overview and is never published.
+
+**The historical freeze happens AT PUBLISH, not at draft.** A draft stores only what a human authors — the homeroom comment and notes — and *no academic values at all*. Its preview reads live data every time. `publish()` then rebuilds the scores, the labels, the class context and the signatories from current data, writes the subject rows, supersedes any predecessor and publishes, all in one transaction. That is what stops a draft prepared on Monday from issuing Monday's stale 85 on Friday after the source was corrected to 90.
+
+**Snapshot policy:** anything whose *display value* must remain as issued is copied — student name and number, subject names, period and year labels, class and grade, school identity, homeroom teacher and principal, every score, the overall average, the comment. Foreign keys are kept alongside for traceability, and **the published renderer reads none of them**. A test mutates every upstream source and asserts the rendered HTML comes back byte-identical.
+
+**Student identity is preserved as issued.** A later name correction updates the live record, every preview and every future publication, but never an issued one. The screen shows *"Issued as … — now recorded as …"* when they differ. Correcting an issued document means publishing a replacement.
+
+**Lifecycle: draft → published → superseded.** Published is immutable and never deleted; there is no "unpublish". A correction publishes a new record whose `supersedes_id` points at the old one, and the old one becomes `superseded` — the direction is *"this new record supersedes that old one"*. A partial unique index (`WHERE status = 'published'`) permits exactly one current issue per student and period, while drafts and superseded records coexist. The predecessor steps down *before* the replacement steps up, inside the same transaction, so the index is never momentarily violated.
+
+**Class and grade are point-in-time publication context, not reconstructed history.** `class_student` is still not effective-dated, so the record snapshots the class the student resolves to *at publication* and says so. Ambiguity — two active classes, or two homeroom teachers on one class — **refuses publication** rather than picking one to print on a signed document.
+
+**Print architecture: browser-native.** Print-optimised Blade with `@page`, repeating table headers, `break-inside: avoid` and a `.no-print` toolbar — the pattern the payment receipt has used since Phase 3. **No PDF package, no headless browser, no stored files.** A server-side renderer would consume the same markup, so adding one later is additive rather than a rewrite.
+
+**One ViewModel, one template.** `ReportCardDocument` is built from live data or from a published snapshot, and `documents/report-card.blade.php` cannot tell which. The five planning documents share `documents/planning.blade.php` through `PlanningDocument`. Explicit builders per document type — no `documents`/`document_types`/`document_fields` table and no template DSL.
+
+**Planning documents render canonical records live and store nothing.** Prota, Prosem, ATP, Modul Ajar and Jurnal Harian each already carry their own historical protection, so a snapshot copy could only disagree with the original. Because an active Prota and Prosem stay editable, every printout carries a *Dicetak / Printed* timestamp.
+
+**School identity lives in `config/school.php`** (environment-backed), not in template strings, and is snapshotted onto each issued record. A missing principal name prints an unnamed signing line rather than inventing one.
+
+**Signatures are printed name plus wet-signature space.** No image storage, no QR, no digital signature.
+
+**Not included in Phase 6A, deliberately:**
+- **Attendance on the report card.** RSMS records `present/absent/late/excused`; a rapor needs *hadir/sakit/izin/alpa*. `excused` collapses *sakit* and *izin* and there is no *alpa*. Publishing a mapping would fabricate a distinction the data does not contain — that is an attendance-model decision, not a document one. Teaching groups have no attendance at all.
+- Character/*sikap*, extracurricular results, promotion decisions, conduct — each is a student-evaluation domain, not document generation.
+- Kindergarten developmental reporting. KG teachers may print planning documents; the numeric report card is not routed to them.
+- Document numbering. Nothing at Rahai currently requires one, so no format was invented.
+- Stored PDF artefacts and template versioning. **Phase 6A guarantees the DATA, not the appearance:** a record reprinted in 2029 shows 2026's numbers and names, rendered by the 2029 template. The authoritative issued document remains the signed paper copy.
+
+---
+
+### Remaining V6 scope (not started)
+
+The original goal said "DOCX/PDF". Phase 6A delivered browser-native print for all seven documents — Rapor plus the five planning documents plus the existing receipt — which covers what the school actually does with them. What is genuinely still open:
+
+- A server-side renderer, if unattended bulk generation (250 rapor at once) or emailing files is ever needed. Additive: it would consume the same templates.
+- Attendance on the report card, after the enum decision above.
+- Kindergarten developmental reporting — its own architecture.
+- Document numbering, if the school says it needs one.
 
 ---
 

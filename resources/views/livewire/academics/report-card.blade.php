@@ -6,12 +6,24 @@
             <h1 class="font-serif text-xl font-bold text-brand-navy">Report Card</h1>
             <p class="text-sm text-slate-500">{{ $student->fullName() }} &middot; {{ $student->student_number }}</p>
         </div>
-        <select wire:model.live="academic_year_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy sm:w-48">
-            @foreach ($academicYears as $year)
-                <option value="{{ $year->id }}">{{ $year->name }}{{ $year->is_current ? ' (current)' : '' }}</option>
-            @endforeach
-        </select>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select wire:model.live="academic_year_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy sm:w-48">
+                @foreach ($academicYears as $year)
+                    <option value="{{ $year->id }}">{{ $year->name }}{{ $year->is_current ? ' (current)' : '' }}</option>
+                @endforeach
+            </select>
+            @if ($academic_year_id !== '')
+                <a href="{{ route('documents.report-card.year', [$student, $academic_year_id]) }}" target="_blank"
+                    class="rounded-md border border-slate-300 px-4 py-2 text-center text-sm text-slate-600 hover:bg-slate-50">Print</a>
+            @endif
+        </div>
     </div>
+
+    <p class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        This overview is always live &mdash; it recalculates from current data every time.
+        An <a href="{{ route('students.academic-records', $student) }}" wire:navigate class="font-medium underline">issued report card</a>
+        is a separate, frozen record.
+    </p>
 
     @if ($rows->isEmpty())
         <p class="rounded-lg bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcademicPeriod;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
@@ -51,6 +52,87 @@ class ReportCardBuilder
             'rows' => $rows,
             'overallAverage' => $withOverall->isNotEmpty() ? round($withOverall->avg()) : null,
         ];
+    }
+
+    /**
+     * ONE PERIOD's results -- the unit Rahai actually issues.
+     *
+     * Deliberately a SECOND method rather than a parameter on build(), so the
+     * year formulas above cannot be changed by accident. The two differ in one
+     * place only, and it matters:
+     *
+     *   year card overall   = round(mean of subject overalls, where a subject
+     *                         overall is a flat mean over ALL its year results)
+     *   period card overall = round(mean of subject PERIOD averages)
+     *
+     * The per-subject figure is the existing period average, unchanged. Nothing
+     * here redefines how a score becomes a percentage.
+     *
+     * @return array{period: AcademicPeriod, rows: Collection, overallAverage: int|null}
+     */
+    public function buildForPeriod(Student $student, AcademicPeriod $period): array
+    {
+        $periodIds = collect([$period->id]);
+        $year = $period->academicYear;
+
+        $assignmentIds = $this->resultDriven($student, $periodIds)
+            // Class participation carries the same known limitation as the
+            // year build: class_student is not effective-dated, so the only
+            // honest filter is the academic year of the class itself. A period
+            // is never narrowed from enrolled_at, because the source cannot
+            // prove where a student sat in September.
+            ->merge($this->classParticipation($student, $year))
+            ->merge($this->groupParticipationInPeriod($student, $period))
+            ->unique()
+            ->values();
+
+        // Grouped by subject, exactly as the year build does, so a handover or
+        // a Green A -> Blue A move still yields one row.
+        $rows = ClassSubject::whereIn('id', $assignmentIds)
+            ->with('subject')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('subject_id')
+            ->map(function ($assignments) use ($student, $period, $periodIds) {
+                $row = $this->subjectRow($student, $assignments, collect([$period]), $periodIds);
+
+                $score = $row->periodAverages[$period->id];
+
+                return (object) [
+                    'subject' => $row->subject,
+                    // Cast for the caller's convenience only. round() returns a
+                    // float in the year build too; nothing about the arithmetic
+                    // changes here.
+                    'score' => $score === null ? null : (int) $score,
+                ];
+            })
+            ->values()
+            ->sortBy(fn ($row) => $row->subject->name)
+            ->values();
+
+        $scored = $rows->pluck('score')->filter(fn ($v) => $v !== null);
+
+        return [
+            'period' => $period,
+            'rows' => $rows,
+            'overallAverage' => $scored->isNotEmpty() ? (int) round($scored->avg()) : null,
+        ];
+    }
+
+    /**
+     * Group membership overlapping THIS PERIOD's dates rather than the whole
+     * year -- the one discovery rule that genuinely narrows, because
+     * teaching_group_student really is effective-dated.
+     */
+    private function groupParticipationInPeriod(Student $student, AcademicPeriod $period): Collection
+    {
+        $groupIds = $student->teachingGroupMemberships()
+            ->whereHas('teachingGroup', fn ($q) => $q->where('academic_year_id', $period->academic_year_id))
+            ->whereDate('started_on', '<=', $period->end_date)
+            ->where(fn ($q) => $q->whereNull('ended_on')->orWhereDate('ended_on', '>=', $period->start_date))
+            ->pluck('teaching_group_id');
+
+        return ClassSubject::whereIn('teaching_group_id', $groupIds)->pluck('id');
     }
 
     /**

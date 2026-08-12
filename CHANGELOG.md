@@ -4,6 +4,70 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 6A: Reporting & Document Generation
+
+The separation this phase exists to make: a LIVE report card is a view of current data; a PUBLISHED Academic Record is a record of what was issued. They are allowed to disagree, and when they do, the disagreement is the point - a family holds a printed copy of the issued numbers.
+
+### The publication unit is the PERIOD
+Student + academic period, because that is what a school issues at the end of a semester and hands to parents. The year-level report card remains a live overview and is never published. A second builder method, `buildForPeriod()`, was added alongside the year build rather than replacing it, so the year formulas cannot be changed by accident. The two differ in exactly one place, documented in the code: the year card overall is a mean of subject overalls (each a flat mean over all year results), while the period card overall is a mean of subject PERIOD averages.
+
+### The freeze happens AT PUBLISH, not at draft
+A draft stores only what a human authors - the homeroom comment and notes - and **no academic values at all**. It has no subject rows to go stale, and its preview reads live data every time. `publish()` then rebuilds the scores, labels, class context and signatories from CURRENT data, writes the subject rows, supersedes any predecessor and publishes, in one transaction.
+
+Verified end to end: a draft prepared while a score read 85, with the source corrected to 90 before publishing, issues **90**.
+
+### Snapshot policy
+Snapshot anything whose DISPLAY value must remain as issued; keep foreign keys beside it for traceability; render from the snapshot and never from the key. Covered: student name and number, subject names, period and year labels, class and grade, school identity, homeroom teacher, principal name and title, every score, the overall average and the comment.
+
+Proven rather than asserted: a test mutates the subject name, the student's name and number, the period name, the class name, the year name, every assessment result, the homeroom teacher and the school config, then re-renders the issued document and requires the HTML to come back **byte-identical**.
+
+### Student identity
+An issued record preserves the name as issued. A later correction updates the live record, every preview and every future publication, but never an issued one; the screen shows *"Issued as X - now recorded as Y"* when they differ. Correcting an issued document means publishing a replacement, not editing history. Data correction and academic-result mutation are deliberately different acts.
+
+### Lifecycle and supersession
+draft to published to superseded. Published is immutable - guarded in the model, the service and the subject rows - and never deleted; there is no unpublish. A correction publishes a replacement whose `supersedes_id` points at the predecessor, and the predecessor becomes `superseded`. The direction is deliberate: the NEW record supersedes the OLD.
+
+A partial unique index (`WHERE status = 'published'`) permits exactly one current issue per student and period; drafts and superseded records coexist. **The predecessor steps down before the replacement steps up** inside the same transaction - found during implementation, because the other order violates the index against itself mid-transaction. A raw-SQL second published row is refused on both drivers.
+
+### Refuses to guess
+Two active classes for one student, or two homeroom teachers on one class, **refuse publication** with a message naming the problem. Picking one to print on a document that gets signed is exactly the kind of silent guess this project rejects everywhere else. `class_student` is still not effective-dated, so the class and grade are snapshotted as **point-in-time publication context** and documented as such - not as reconstructed history.
+
+### Print architecture
+Print-optimised Blade with `@page`, repeating table headers, `break-inside: avoid`, a `.no-print` toolbar and `window.print()` - the pattern the payment receipt has used in production since Phase 3. **No PDF package, no headless browser, no stored files.** dompdf's CSS support would have forced a second divergent template; Browsershot and wkhtmltopdf need binaries shared hosting typically forbids. A server-side renderer would consume this same markup, so adding one later is additive.
+
+### One ViewModel, one template
+`ReportCardDocument` is built from live year data, live period data, or a published snapshot, and the template cannot tell which. `fromPublished()` reads `academic_records` and `academic_record_subjects` and nothing else. The five planning documents share one template through `PlanningDocument`. Explicit builders per document type - no `documents`/`document_types`/`document_fields` table, no template DSL.
+
+### Planning documents render live and store nothing
+Prota, Prosem, ATP, Modul Ajar and Jurnal Harian each already carry their own historical protection, so a snapshot copy could only disagree with the original. Because an active Prota and Prosem stay editable, every printout carries a *Dicetak / Printed* timestamp. A test asserts no snapshot table was created for any of them.
+
+### Added
+- `config/school.php` (environment-backed) plus SCHOOL_* keys in `.env.example`. School identity was previously hardcoded in three Blades, and `APP_NAME` holds the SYSTEM name, not the school's. A missing principal name prints an unnamed signing line rather than inventing one.
+- `academic_records`, `academic_record_subjects`; `AcademicRecord`, `AcademicRecordSubject`, `AcademicRecordService`, `AcademicRecordPolicy`.
+- `App\Documents`: `ReportCardDocument`, `ReportCardDocumentRow`, `PlanningDocument`, `PlanningDocumentSection`, and six builders.
+- Shared `<x-document>` layout carrying the school header, print stylesheet, signing blocks and preview watermark.
+- Eight `documents.*` routes, policy-gated, plus an Academic Records screen per student.
+
+### Signatures and numbering
+Printed name plus wet-signature space. No image storage, no QR, no digital signature - the signed paper copy is the authority. No document number: nothing at Rahai currently requires one, so no format was invented.
+
+### Deliberately excluded
+- **Attendance on the report card.** RSMS records `present/absent/late/excused`; a rapor needs *hadir/sakit/izin/alpa*. `excused` collapses *sakit* and *izin*, and there is no *alpa*. Publishing a mapping would fabricate a distinction the data does not contain. That is an attendance-model decision, not a document one.
+- Character/*sikap*, extracurricular results, promotion decisions, conduct - each a student-evaluation domain.
+- Kindergarten developmental reporting.
+- Stored PDF artefacts and template versioning. **Phase 6A guarantees the DATA, not the appearance.**
+
+### Authorization and audit
+No new permission. Reading an issued record uses the SAME gate as the live report card (`academics.view` + `StudentPolicy::view`, which scopes teachers through `class_teacher`); publishing, correcting and drafting require `academics.manage`. `StudentPolicy` is untouched. `AcademicRecord` is Auditable; `AcademicRecordSubject` deliberately is not, because it is written only inside the publication transaction and has no independent edit path - with tests proving no such path exists.
+
+### Tests
+`AcademicRecordTest` (24) and `DocumentRenderingTest` (16). Suite: 662 to 702 passing.
+
+### Verification
+Fresh PostgreSQL install (64 migrations) in an isolated database, running the specified scenario: publish-after-correction issued 90 not the stale 85; a later change to 92 moved the live preview and left the record at 90; a correction published 92 and superseded the predecessor at 90; edits, deletes and a raw-SQL duplicate were all refused; renaming the student, subject, period and principal left the issued document unchanged while the live preview followed every one of them. Repeated through the browser at 375px, printing an issued record, a watermarked live preview and a Prota. Database dropped, environment restored, development database left with zero academic records.
+
+---
+
 ## 2026-08-12 - Phase 5F: Teaching Modules + Daily Journals
 
 The last two layers of the V5 teaching cycle. Module answers HOW; Journal answers WHAT ACTUALLY HAPPENED. Neither restates anything upstream.

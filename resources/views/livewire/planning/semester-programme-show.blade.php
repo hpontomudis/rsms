@@ -1,5 +1,8 @@
 <div class="mx-auto max-w-2xl space-y-4">
-    <a href="{{ route('planning.annual.show', $annual) }}" class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $vocabulary['annual'] }}</a>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <a href="{{ route('planning.annual.show', $annual) }}" class="text-sm text-slate-500 hover:text-slate-700">&larr; {{ $vocabulary['annual'] }}</a>
+        <a href="{{ route('documents.semester-programme', $semesterProgramme) }}" target="_blank" class="text-sm font-medium text-brand-navy hover:underline">Print</a>
+    </div>
 
     <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <div class="flex flex-wrap items-start justify-between gap-2">
