@@ -4,6 +4,49 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-12 - Phase 5D: Learning Pathways (ATP)
+
+### Added
+- **`learning_pathways`** - a linear ordered route through one curriculum scope and subject. Alur Tujuan Pembelajaran nationally, Learning Path on a Rahai English curriculum; one engine, wording derived from the curriculum. Physically neutral naming for the same reason the CP table is not called `capaian_pembelajaran`.
+- **`learning_pathway_items`** - the ordered sequence, with a mirrored anchor and `notes` for sequencing rationale.
+- **`LearningPathwayService`** - authoring, ordering, normalisation and the activation gate.
+- **`academics.plan` permission**, granted to teacher plus the three management roles.
+- Pathway list on the curriculum scope screen and a pathway screen for the sequence.
+
+### Integrity
+- Two composite foreign keys through a mirrored anchor force the item, its pathway and its objective to share a curriculum scope and subject. Verified directly in SQL: cross-phase, cross-subject, national-to-English-programme, falsified anchor and duplicate objective - all five refused.
+- `UNIQUE(pathway, objective)`: an objective appears at most once. A pathway is an ordered set of goals, not a schedule of every occasion one is revisited - that belongs to the semester plan.
+
+### Ordering
+- `position` is the authoritative teaching sequence and is independent of `learning_objectives.reference_order`. The UI shows both numbers so the distinction is visible rather than assumed.
+- Draft positions are normalised to a contiguous 1..n after every add, remove and move, and re-validated at activation. **This is an application-level constraint**, not a database one: a partial unique index would need the parent's status, which SQL cannot read from an index predicate, and mirroring status onto every item purely to enable one index was the worse trade. Raw SQL can still gap a draft; `normalise()` repairs it.
+
+### Variants
+- Several pathways may be ACTIVE at once for one scope + subject. They are alternative approved routes, so the single-active rule used for objectives deliberately does not apply, and activating one never retires another. Only `code` is unique among active pathways.
+
+### Lifecycle
+- Draft editable, active frozen (metadata, membership and order), archived read-only. Revision is prepare-draft, archive predecessor, activate replacement; alternatives simply coexist.
+- Draft pathways may sequence draft or active objectives; an archived objective may never be newly added. Activation requires every item to reference an active objective - but an objective archived AFTERWARDS leaves the pathway valid and its items untouched.
+- Curriculum boundary mirrors TP: draft ATP under a draft or active curriculum, activation only under an active one, nothing created or changed under an archived one, and archiving a curriculum leaves pathway status factual.
+
+### Governance
+- Teachers may author drafts - the first curriculum artefact they can, because a pathway is planning rather than a published standard. `academics.plan` is scoped by real teaching: a teacher may draft only where they hold an ACTIVE assignment whose subject and resolved scope match. Year 5 and Year 6 Mathematics teachers both resolve to Phase C and collaborate on the same record; a Green A English teacher reaches only the Green path; a closed assignment authorises nothing. Activation and archiving stay with `academics.manage` - that is the approval, so no separate approval workflow was built. No creator ownership.
+
+### Fixed
+- **Two more stale planning commitments corrected.** Prota was described as "a thin wrapper around an ATP with no items of its own"; that cannot work, since a Phase C pathway spans Year 5 and Year 6 and something must record which portion each assignment covers and when. And the V5 vision line still claimed the whole cycle is anchored to `class_subject`; only the execution layers are. A duplicated ATP entry left by the Phase 5C edit was also removed.
+
+### Not implemented
+- Prota, Prosem, Teaching Modules, Daily Journals. Grade and academic period enter the architecture at Prota.
+- No `class_subject.learning_pathway_id`. A teaching assignment will SELECT a pathway through Prota; a test pins that the column does not exist, and another pins that no Prota/Prosem table exists.
+
+### Tests
+- New `LearningPathwayTest` (56 tests): anchor and absent-column checks, ordering independence, duplicate rejection at both layers, four database-level integrity attacks plus a falsified anchor, position normalisation after add/remove/move and repair of a raw-SQL gap, TP status eligibility including archive-after-activation, all activation gates, coexisting active variants, active-code conflict at service and database, lifecycle freezes, curriculum interaction, the full teacher-scoping matrix, audit, and delete safety. Suite: 368 to 424 passing.
+
+### Verification practice
+- Verified in an isolated `rahai_sms_verify` database. The development database was not touched and no lifecycle guard was bypassed.
+
+---
+
 ## 2026-08-12 - Phase 5C: Learning Objectives (TP)
 
 ### Added

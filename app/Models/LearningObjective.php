@@ -130,6 +130,12 @@ class LearningObjective extends Model
         )->withTimestamps();
     }
 
+    /** Which pathways sequence this objective. */
+    public function pathwayItems(): HasMany
+    {
+        return $this->hasMany(LearningPathwayItem::class);
+    }
+
     public function isDraft(): bool
     {
         return $this->status === 'draft';

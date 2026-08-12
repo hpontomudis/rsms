@@ -48,6 +48,11 @@ class CurriculumScope extends Model
         return $this->hasMany(LearningObjective::class)->orderBy('reference_order');
     }
 
+    public function learningPathways(): HasMany
+    {
+        return $this->hasMany(LearningPathway::class);
+    }
+
     public function isPhaseBased(): bool
     {
         return $this->learning_phase_id !== null;

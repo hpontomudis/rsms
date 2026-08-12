@@ -1,8 +1,8 @@
 # Project Status
 
-**Current Version:** V5.3 — Phase 5 **Steps 0-2e complete**, plus **Phase 5A (Curriculum foundation)** **Phase 5B (Curriculum Scopes + CP)** and **Phase 5C (TP / Learning Objectives)**; ATP and the remaining planning entities not started
-**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration), 2d (report-card discovery) 2e (teacher workspace) Phase 5A (curriculum registry + learning phases) Phase 5B (curriculum scopes + learning outcomes) and Phase 5C (learning objectives) are implemented, tested, and verified.** ATP, Prota, Prosem, Teaching Modules and Daily Journals are approved in design but **not started** — awaiting explicit go-ahead.
-**Last verified:** 2026-08-10 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
+**Current Version:** V5.4 — Phase 5 **Steps 0-2e complete**, plus **Phase 5A–5D** (Curriculum foundation, Scopes + CP, TP, and ATP); Prota, Prosem and the remaining planning entities not started
+**Current Phase:** Phase 5 architecture approved. **Steps 0 (effective-dated teaching assignments), 1 (academic-period canonicalisation), 2a-i (English programmes & levels), 2a-ii (teaching groups, membership, English placement), 2b (teaching-assignment extension), 2c (unified accessors + assessment integration), 2d (report-card discovery), 2e (teacher workspace), Phase 5A (curriculum registry + learning phases), Phase 5B (curriculum scopes + learning outcomes), Phase 5C (learning objectives) and Phase 5D (learning pathways) are implemented, tested, and verified.** Prota, Prosem, Teaching Modules and Daily Journals are approved in design but **not started** — awaiting explicit go-ahead.
+**Last verified:** 2026-08-12 — by inspecting routes, migrations, models, policies, seeders, and running the full test suite
 
 ---
 
@@ -17,6 +17,7 @@
 - **Staff position type-to-add (V4.2):** free-type-or-pick position field; added Support Staff / Building Staff to defaults
 - **English Programmes (V4.5 / Phase 5 Step 2a-i):** proficiency frameworks (Primary colour levels, Junior High Level A/B/C) with per-programme level ordering, archive-not-delete levels, and grade applicability
 - **Teaching Assignments for groups (V4.8–V5.0-pre / Phase 5 Steps 2b + 2c + 2d):** `class_subject` extended so an assignment is backed by an administrative class **or** a teaching group, with Step 0 close-and-create handover; and unified roster/year/display accessors so the existing assessment engine serves both identically; and report-card discovery across both roster sources, merged by subject.
+- **Learning Pathways / ATP (V5.4 / Phase 5D):** linear ordered routes through one curriculum scope + subject; several may be active as alternatives; item integrity database-enforced; teachers author drafts scoped by their real active teaching assignments, management activates.
 - **Learning Objectives / TP (V5.3 / Phase 5C):** `CP ↔ TP` many-to-many within one scope and subject, enforced by composite foreign keys with no application-level gap. TP carries its own draft/active/archived lifecycle so objectives can be authored while a curriculum is in force; activation requires at least one CP link.
 - **Curriculum Scopes & Learning Outcomes (V5.2 / Phase 5B):** `Curriculum → Scope → Learning Outcome`, one engine for national CP (scoped by Learning Phase) and Rahai English outcomes (scoped by English Level). Cross-programme scoping refused by the database; content immutable once a version leaves draft.
 - **Curriculum & Learning Phase foundation (V5.1 / Phase 5A):** seven seeded national learning phases mapped to grades (Foundation → Kindergarten 1-2, A → Year 1-2, B → Year 3-4, C → Year 5-6, D → Year 7-9, E → Year 10, F → Year 11-12), and a versioned curriculum registry with archive-and-create version lifecycle. Reference layer only — no CP, TP or scopes.
@@ -25,12 +26,12 @@
 
 ## In Progress
 
-- **Phase 5 Steps 0-2e, Phase 5A, 5B and 5C are complete.** Nothing else is in progress; ATP awaits approval.
+- **Phase 5 Steps 0-2e, Phase 5A, 5B, 5C and 5D are complete.** Nothing else is in progress; Prota / Prosem await approval.
 
 ## Next (pending user instruction)
 
 - Teacher scoping through teaching groups (`StudentPolicy`), deferred until a teaching assignment can authorize it.
-- Phase 5D onward: ATP (ordered TP sequence within one curriculum scope + subject; teaching assignments SELECT an ATP rather than owning one) → Prota → Prosem → Teaching Modules → Daily Journals → dashboards.
+- Phase 5E onward: Prota (annual programme per teaching assignment + academic year, selecting one pathway and allocating its items) → Prosem → Teaching Modules → Daily Journals. Grade and academic period enter the architecture at Prota.
 - Kindergarten developmental assessment and reporting — deliberately separate from the numeric assessment model.
 - Later cleanup migration: drop the deprecated `assessments.term` column once the new architecture has proven stable.
 - The "successor teacher can read predecessor planning" test is deliberately deferred to the ATP step, since no Phase 5 planning entity exists yet to test against.
@@ -50,6 +51,8 @@
 
 ## Technical Debt
 
+- **Draft pathway item positions are kept contiguous by the service, not by a constraint.** A partial unique index on `(pathway, position)` would need the parent's status, which SQL cannot read from an index predicate, and mirroring status onto every item purely to enable one index was judged the worse trade. Raw SQL can leave a draft gapped; `LearningPathwayService::normalise()` repairs it and activation re-validates. Documented rather than discovered.
+
 - **`class_student` has no effective dating and no guard against a student holding two `active` rows in one academic year.** Discovered during Step 2a-ii. Nothing was changed in Phase 1; instead `StudentGradeResolver` refuses to resolve a grade when the active classes disagree, and blocks the English operation with a clear message rather than picking one. A future Foundation integrity pass should decide whether `class_student` becomes effective-dated like `class_subject` and `teaching_group_student`, or gains a partial unique index over active rows.
 - **`staff.user_id` has no unique index**, so two staff rows can be linked to one login. Found in Step 2e. No migration was added (the step was scoped to require none); instead the teacher workspace refuses to resolve an ambiguous identity rather than guessing. A Foundation integrity pass should add the unique index.
 - **`academic_years` permits overlapping date ranges.** Also unaddressed by design in this step; the resolver reports the ambiguity instead of choosing. Worth a constraint when Academic Years are next revisited.
@@ -57,6 +60,8 @@
 ## Important Architectural Decisions
 
 - **`class_subject` is the single Teaching Assignment store.** One row = one subject + one roster + one teacher + a date range, where the roster is an administrative class XOR a teaching group. No parallel `teaching_group_subject` table, and no rename of the physical table — `assessments.class_subject_id` and every other reference keep working, and the domain concept lives in the model's documentation rather than in churn.
+- **Teachers author pathways, scoped by what they actually teach.** The `academics.plan` permission is not a blanket grant: a teacher may draft only where they hold an *active* teaching assignment whose subject and resolved scope match the pathway. Year 5 and Year 6 Mathematics teachers both resolve to Phase C and collaborate on one record, which is the point. Activation stays with management — that is the approval step, so no separate approval workflow was built.
+- **Alternative pathways coexist; they are not versions.** Several may be active for one scope + subject, and activating one never retires another. This is the one place the curriculum layer deliberately does NOT copy the single-active rule used for objectives.
 - **TP is the school's formulation, not the published standard, so it has its own lifecycle.** CP inherits the curriculum's state; TP carries draft/active/archived of its own, because educators write and revise objectives while a curriculum is in force. Requiring every TP before activation would have made activation punitive and pushed curricula to stay in draft forever — which would have made versioning decorative.
 - **A learning objective's anchor is immutable from creation.** Not merely after activation: moving a Phase C objective to Phase D would re-point what it serves and unpick the composite keys binding its CP links. An unused draft in the wrong place is deleted and rewritten.
 - **Published curriculum content is immutable; a change means a new version.** A shared model guard refuses edits to scopes and outcomes once their curriculum leaves draft — for managers too, because this is versioning rather than a permission question. Drafts stay fully editable.
@@ -85,14 +90,14 @@
 ## Database Status
 
 - PostgreSQL 17, local dev instance (`rahai_sms` database).
-- 48 migrations, all applied cleanly; verified both as an in-place upgrade of the dev database and as a from-scratch migrate + seed on an isolated throwaway database (`rahai_sms_verify`, since dropped).
+- 50 migrations, all applied cleanly; verified both as an in-place upgrade of the dev database and as a from-scratch migrate + seed on an isolated throwaway database (`rahai_sms_verify`, since dropped).
 - Soft-deletes on: `students`, `guardians`, `staff`.
-- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `Curriculum`, `LearningPhase`, `LearningPhaseGrade`, `CurriculumScope`, `LearningOutcome`, `LearningObjective`, `LearningObjectiveLearningOutcome`.
+- Audit trail (`audit_logs`) covers: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, `Curriculum`, `LearningPhase`, `LearningPhaseGrade`, `CurriculumScope`, `LearningOutcome`, `LearningObjective`, `LearningObjectiveLearningOutcome`, `LearningPathway`, `LearningPathwayItem`.
 
 ## Testing Status
 
-- **368/368 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
-- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), curriculum scopes & outcomes (49), learning objectives (45), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), curriculum scopes & outcomes (49), learning objectives (45), plus 1 baseline routing test.
+- **424/424 automated tests passing** (PHPUnit, run against an in-memory SQLite DB per `phpunit.xml` — isolated from the Postgres dev DB).
+- Coverage by area: Foundation relationships (6 tests), Policy scoping (2), Attendance (6), Finance (6), Academics (5), teaching-assignment history (13), academic periods (12), English programmes (25), teaching groups & English placement (61), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), curriculum scopes & outcomes (49), learning objectives (45), learning pathways (56), teaching assignments (28), group assessments (29), report-card discovery (21), teacher workspace (18), curriculum foundation (40), curriculum scopes & outcomes (49), learning objectives (45), learning pathways (56), plus 1 baseline routing test.
 - Tests focus on business rules and authorization scoping (e.g. "a teacher cannot record attendance for a class they don't teach," "an invoice's items lock once a payment exists") rather than exhaustive UI coverage.
 - Every module has also been manually verified end-to-end in-browser (desktop + mobile viewports, across at least two roles) before being marked complete.
 

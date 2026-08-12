@@ -96,6 +96,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{curriculum}', Curricula\Show::class)->name('show');
         Route::get('/{curriculum}/edit', Curricula\Edit::class)->name('edit');
         Route::get('/{curriculum}/scopes/{scope}', Curricula\ScopeShow::class)->name('scopes.show');
+        Route::get('/{curriculum}/scopes/{scope}/pathways/{pathway}', Curricula\PathwayShow::class)->name('pathways.show');
     });
 
     Route::prefix('english-programmes')->name('english-programmes.')->group(function () {

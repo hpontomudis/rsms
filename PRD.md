@@ -6,7 +6,7 @@
 | Organization | Yayasan Pendidikan Halmahera Membangun Bangsa |
 | Location | North Halmahera, Indonesia |
 | Document type | Living master blueprint — update only for material changes (see rule at bottom) |
-| Last updated | 2026-08-12 (V5.3 built — Phase 5 Steps 0-2e plus Phase 5A/5B/5C curriculum layer; V5 planning entities approved, not started) |
+| Last updated | 2026-08-12 (V5.4 built — Phase 5 Steps 0-2e plus Phase 5A-5D curriculum layer; V5 planning entities approved, not started) |
 
 ---
 
@@ -58,7 +58,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 - **Frontend:** Blade + Livewire 4 (full-page components, no separate SPA/API layer), Tailwind CSS v4
 - **Auth:** Laravel session auth. Accounts are **admin-provisioned** — there is no self-registration screen.
 - **Authorization:** one Eloquent Policy per core model (`app/Policies/`), backed by spatie permissions. A `Gate::before` hook in `AppServiceProvider` grants `super_admin` everything.
-- **Audit logging:** an `Auditable` trait (`app/Models/Concerns/Auditable.php`) writes to `audit_logs` on create/update/delete. Currently applied to: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`. Note that `attach()`/`detach()`/`sync()` fire no Eloquent events, so link tables that must be audited are written as full models, never through a `belongsToMany` write.
+- **Audit logging:** an `Auditable` trait (`app/Models/Concerns/Auditable.php`) writes to `audit_logs` on create/update/delete. Currently applied to: `Student`, `Guardian`, `Staff`, `Attendance`, `Invoice`, `Payment`, `Discount`, `Assessment`, `ClassSubject`, `AcademicPeriod`, `EnglishProgramme`, `EnglishLevel`, `EnglishProgrammeGrade`, `TeachingGroup`, `TeachingGroupStudent`, `StudentEnglishLevelPlacement`, and the curriculum layer (`Curriculum`, `CurriculumScope`, `LearningOutcome`, `LearningObjective`, `LearningPathway` and their link/item models). Note that `attach()`/`detach()`/`sync()` fire no Eloquent events, so link tables that must be audited are written as full models, never through a `belongsToMany` write.
 - **Soft deletes:** `Student`, `Guardian`, `Staff` — archived, never hard-deleted, so historical records (attendance, invoices, assessments) stay intact.
 - **Brand identity:** Rahai's official crest, color palette (`#171F46` navy / `#575D79` slate / `#F3C445` gold / `#AAADBB` grey), and primary typeface (Libre Baskerville) are applied to the UI chrome (sidebar, buttons, headings); data tables stay neutral for legibility.
 - **App shell:** grouped left sidebar navigation (People / Academics / Finance sections), permission-driven — a section header only renders if the current role can see at least one item in it.
@@ -71,7 +71,7 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Attendance | V2 | Complete |
 | Finance (Fee Structures, Invoices, Payments, Discounts, Receipts) | V3 | Complete |
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
-| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0-2e and Phases 5A/5B/5C built; ATP and teacher student-scoping not yet connected; the planning entities themselves not started |
+| Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **In progress** — Steps 0-2e and Phases 5A-5D built; Prota/Prosem and teacher student-scoping not yet connected; the planning entities themselves not started |
 | Document Generation (structured data → DOCX/PDF for Prota/Prosem/ATP/Modules/Journals/Rapor) | V6 | Planned (not scoped) |
 | Communication | V7 | Planned |
 | AI-assisted reporting | V8 | Planned |
@@ -138,7 +138,8 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V5.0-pre | Phase 5 Step 2e — Teacher Workspace (My Teaching Assignments) | Complete |
 | V5.1 | Phase 5A — Curriculum registry + Learning Phase reference layer | Complete |
 | V5.2 | Phase 5B — Curriculum Scopes + Learning Outcomes (CP) | Complete |
-| V5.3 | Phase 5C — Learning Objectives (TP), many-to-many with CP | Complete (current build) |
+| V5.3 | Phase 5C — Learning Objectives (TP), many-to-many with CP | Complete |
+| V5.4 | Phase 5D — Learning Pathways (ATP), ordered TP sequences | Complete (current build) |
 | V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
 | V6.0 | Document Generation (DOCX/PDF from Phase 5's structured data) | Not started — deliberately deferred, Phase 5's data model is the prerequisite |
 | V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |

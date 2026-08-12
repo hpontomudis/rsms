@@ -283,14 +283,14 @@ Card layout is deliberately shaped to take more actions later — ATP, Prota, Pr
 ### Planning Entities *(Phase 5 Step 2b onward)*
 Status: **Proposed** — architecture approved, no code
 
-Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data, anchored to the existing `class_subject` "teaching assignment" record so teacher/subject/class/grade/academic-year never need re-entering.
+Vision: connect the full teaching cycle — Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Teacher Journal → (existing) Assessment → (existing) Report Card — as structured data. *Corrected in Phase 5D: the standards and planning layers (Curriculum, CP, TP, ATP) are anchored to a **curriculum scope + subject**, not to `classsubject`. Only the execution layers (Prota onward, plus the existing Assessment) hang off a teaching assignment. That separation is what lets one Phase C pathway serve Year 5A, Year 5B and Year 6A without duplication.*
 
 Proposed features:
 - **Curriculum:** name/code/description, `status` (draft/active/archived) — admin-managed, framework-level, not tied to one academic year
 - **Capaian Pembelajaran (CP):** linked to curriculum + subject + optional grade; admin-managed
 - **Tujuan Pembelajaran (TP):** implemented in Phase 5C — see below. *Corrected: an earlier draft said a TP is "linked to a CP" (one-to-many). It is many-to-many, because a TP often synthesises several CP elements.*
 - **Alur Tujuan Pembelajaran (ATP):** an ordered sequence of TP **within one curriculum scope and subject** (a learning phase, or an English level), via header + `atp_items`. *Corrected in Phase 5C: an earlier draft of this document said an ATP belonged directly to a teaching assignment (`class_subject`). It does not. A Phase C ATP spans Year 5 and Year 6, so it cannot be owned by one class's assignment; teaching assignments will SELECT an ATP, and several may use the same one.*
-- **Program Tahunan (Prota):** a thin publish/finalize wrapper around an ATP for a teaching assignment — deliberately has no items of its own, reuses the ATP's — teacher-managed
+- **Program Tahunan (Prota):** belongs to a teaching assignment and an academic year, SELECTS one learning pathway, and carries its own allocation items mapping pathway items to periods. *Corrected in Phase 5D: an earlier draft called Prota “a thin wrapper with no items of its own”. That cannot work — a Phase C pathway spans Year 5 and Year 6, so something must record which portion each assignment covers and when. Grade and academic period enter the architecture here, not in the pathway.*
 - **Program Semester (Prosem):** semester-level plan (week-by-week items, free-text week labels rather than a rigid calendar) — teacher-managed
 - **Modul Ajar (Teaching Module):** the richest record — links to CP/TP/ATP/an actual Assessment (optional), planning narrative fields (materials, methods, activities, assessment strategy, reflection, differentiation) — only `title` and the teaching assignment are required, everything else optional
 - **Jurnal Harian Guru (Daily Journal):** what was actually taught, distinct from the Module's plan; auto-derives teacher/subject/class/grade/year from the teaching assignment; optionally references a Teaching Module, an Attendance session (counts computed live, never copied), and an Assessment (scores stay in the existing assessment tables)
@@ -398,13 +398,34 @@ CP had no authoring lifecycle of its own — it inherited the curriculum's. TP g
 
 **Reference order is not teaching order.** `reference_order` orders the library for reading; ATP will own instructional sequence and may select a subset in a different order. Uniqueness on reference order and code applies to the **active** library only, so a draft replacement may deliberately carry its predecessor's number and code while it is prepared — that is the revision workflow: prepare draft → archive the old → activate the replacement. Anything that already referenced the old TP keeps referencing it.
 
+#### Learning Pathways / ATP *(Phase 5D)*
+Status: Complete
+
+`Curriculum → Scope → TP → Learning Pathway`. On the national curriculum a pathway is an **Alur Tujuan Pembelajaran (ATP)**; on a Rahai English curriculum it is a **Learning Path**. Physically `learning_pathways` — neutral naming, because one engine serves both.
+
+**A linear, ordered route through one curriculum scope and subject.** No `parent_item_id`, no prerequisite graph, no branches: a different valid ordering is a different pathway. Anchored to scope + subject and nothing else — no grade, class, teaching group, teaching assignment or academic year — so a Phase C pathway covers Year 5 and Year 6 as one progression. The anchor is immutable from creation.
+
+**`position` is the authoritative teaching sequence**, entirely independent of `learning_objectives.reference_order`. The same objectives may run in a different order in a different pathway; the UI shows both numbers side by side so the distinction is visible rather than assumed.
+
+**Several pathways may be ACTIVE at once** for one scope + subject. They are alternative approved routes, not competing versions, so the one-active rule that governs TP deliberately does not apply. Activating an alternative never retires another. Only `code` is unique among active pathways, so a draft replacement may carry its predecessor's code while it is prepared.
+
+**Item integrity is database-enforced**, the same mirrored-anchor pattern used for CP↔TP: two composite foreign keys force the item, its pathway and its objective to share a scope and subject. Cross-phase, cross-subject, national↔English and falsified-anchor items are all refused, along with the same objective appearing twice.
+
+**TP eligibility:** a draft pathway may sequence draft or active objectives; an archived objective may never be newly added. Activation requires every item to reference an **active** objective. If an objective is archived *afterwards*, the pathway stays valid and its items are never rewritten — activation-time eligibility and historical validity are different questions.
+
+**Lifecycle** mirrors TP: draft fully editable, active frozen (metadata, membership and order), archived read-only. Revision is prepare-draft → archive predecessor → activate replacement; alternatives simply coexist.
+
+**Teachers may author drafts** — the first curriculum artefact they can, because a pathway is planning rather than a published standard. The new `academics.plan` permission is scoped by real teaching: a teacher may draft only where they hold an **active** teaching assignment whose subject and resolved scope match. Year 5 and Year 6 Mathematics teachers both resolve to Phase C and collaborate on the *same* pathway; a Green A English teacher reaches only the Green path. A closed assignment authorises nothing. Activation and archiving stay with `academics.manage` — that is the approval step. No creator ownership: pathways are collaborative.
+
+**One application-level constraint, stated plainly:** draft item positions are kept contiguous (1..n) by the service after every add, remove and move, and re-validated at activation — but not by a database constraint. A partial unique index would have to know the parent's status, which SQL cannot see from an index predicate, and mirroring status onto every item purely to enable one index was judged worse than the rule living in the service. Raw SQL can still leave a draft gapped; `normalise()` repairs it.
+
 **Not implemented yet, deliberately:**
-- ATP. Contract above.
-- **ATP.** An *ordered sequence of TP within a Learning Phase*, not a list of daily lesson objectives. It must support one phase spanning several grades, so teaching can later allocate parts of an ATP across Year 5 and Year 6 and across academic years without changing the CP's phase identity.
+- Prota / Prosem. Contract corrected above — grade and academic period enter there.
+- Any link from `class_subject` to a pathway. A teaching assignment will SELECT a pathway through Prota; it never owns one.
 - Prota, Prosem, Teaching Modules, Daily Journals.
 - Kindergarten developmental assessment and reporting.
 
-Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes, outcomes or objectives. Standards and teaching execution stay separate layers until TP/ATP connect them. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
+Curriculum standards are **not linked to teaching assignments**: `class_subject` knows nothing about scopes, outcomes, objectives or pathways. Standards and teaching execution stay separate layers until TP/ATP connect them. English learning outcomes describe expected competency and never move a student between levels — proficiency placement remains its own workflow.
 
 ---
 

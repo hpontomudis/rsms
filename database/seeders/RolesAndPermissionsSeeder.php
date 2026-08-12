@@ -30,6 +30,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'finance.manage',
             'finance.discounts.approve',
             'academics.manage',
+            // Authoring DRAFT learning pathways. Deliberately separate from
+            // academics.manage: teachers plan, management puts into force.
+            'academics.plan',
             'academics.record',
             'academics.view',
         ];
@@ -52,7 +55,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'students.view', 'guardians.view', 'staff.view', 'classes.view', 'audit-logs.view',
                 'attendance.view',
                 'finance.view', 'finance.discounts.approve',
-                'academics.view', 'academics.manage',
+                'academics.view', 'academics.manage', 'academics.plan',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
@@ -63,14 +66,14 @@ class RolesAndPermissionsSeeder extends Seeder
                 'classes.view', 'classes.create', 'classes.update',
                 'academic-years.manage', 'grades.manage',
                 'attendance.record', 'attendance.view',
-                'academics.manage', 'academics.record', 'academics.view',
+                'academics.manage', 'academics.plan', 'academics.record', 'academics.view',
             ]);
 
         Role::firstOrCreate(['name' => 'teacher', 'guard_name' => 'web'])
             ->syncPermissions([
                 'students.view', 'classes.view',
                 'attendance.record', 'attendance.view',
-                'academics.record', 'academics.view',
+                'academics.plan', 'academics.record', 'academics.view',
             ]);
 
         Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web'])

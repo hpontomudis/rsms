@@ -97,7 +97,7 @@ class Curriculum extends Model
      * curriculum uses neutral wording rather than borrowing a government term
      * for a school's own framework. Same tables either way.
      *
-     * @return array{outcome: string, outcomes: string, objective: string, objectives: string, basis: string, bases: string}
+     * @return array{outcome: string, outcomes: string, objective: string, objectives: string, pathway: string, pathways: string, basis: string, bases: string}
      */
     public function vocabulary(): array
     {
@@ -105,11 +105,13 @@ class Curriculum extends Model
             ? [
                 'outcome' => 'Learning Outcome', 'outcomes' => 'Learning Outcomes',
                 'objective' => 'Learning Objective', 'objectives' => 'Learning Objectives',
+                'pathway' => 'Learning Path', 'pathways' => 'Learning Paths',
                 'basis' => 'Level', 'bases' => 'Levels',
             ]
             : [
                 'outcome' => 'Capaian Pembelajaran (CP)', 'outcomes' => 'Capaian Pembelajaran (CP)',
                 'objective' => 'Tujuan Pembelajaran (TP)', 'objectives' => 'Tujuan Pembelajaran (TP)',
+                'pathway' => 'Alur Tujuan Pembelajaran (ATP)', 'pathways' => 'Alur Tujuan Pembelajaran (ATP)',
                 'basis' => 'Fase', 'bases' => 'Learning Phases',
             ];
     }

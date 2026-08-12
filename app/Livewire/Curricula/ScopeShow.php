@@ -7,7 +7,9 @@ use App\Models\CurriculumScope;
 use App\Models\LearningObjective;
 use App\Models\LearningOutcome;
 use App\Models\Subject;
+use App\Models\LearningPathway;
 use App\Services\LearningObjectiveService;
+use App\Services\LearningPathwayService;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -358,6 +360,47 @@ class ScopeShow extends Component
         return $this->scope->learningObjectives()->findOrFail($id);
     }
 
+    // ---------------------------------------------- learning pathways (ATP)
+
+    public bool $showAddPathway = false;
+
+    public string $pathway_subject_id = '';
+
+    public string $pathway_code = '';
+
+    public string $pathway_title = '';
+
+    public string $pathway_description = '';
+
+    public function cancelPathway(): void
+    {
+        $this->reset(['showAddPathway', 'pathway_subject_id', 'pathway_code', 'pathway_title', 'pathway_description']);
+        $this->resetErrorBag();
+    }
+
+    public function savePathway(LearningPathwayService $pathways): void
+    {
+        $validated = $this->validate([
+            'pathway_subject_id' => ['required', 'exists:subjects,id'],
+            'pathway_code' => ['nullable', 'string', 'max:50'],
+            'pathway_title' => ['required', 'string', 'max:255'],
+            'pathway_description' => ['nullable', 'string'],
+        ]);
+
+        // Teachers may author, but only for a scope + subject they actually
+        // teach -- the policy resolves that through their active assignments.
+        $this->authorize('createFor', [LearningPathway::class, $this->scope, (int) $validated['pathway_subject_id']]);
+
+        $pathways->create($this->scope, Subject::findOrFail($validated['pathway_subject_id']), [
+            'code' => $validated['pathway_code'] !== '' ? $validated['pathway_code'] : null,
+            'title' => $validated['pathway_title'],
+            'description' => $validated['pathway_description'] !== '' ? $validated['pathway_description'] : null,
+        ]);
+
+        $this->cancelPathway();
+        $this->scope->refresh();
+    }
+
     public function render(LearningObjectiveService $objectives)
     {
         return view('livewire.curricula.scope-show', [
@@ -378,6 +421,16 @@ class ScopeShow extends Component
             // Objectives may still be authored while the curriculum is active;
             // only an archived curriculum closes the library.
             'objectivesEditable' => ! $this->curriculum->isArchived(),
+            'pathways' => $this->scope->learningPathways()
+                ->with('subject')->withCount('items')->get()
+                ->sortBy([
+                    fn ($a, $b) => $a->subject->name <=> $b->subject->name,
+                    fn ($a, $b) => $a->title <=> $b->title,
+                ])
+                ->groupBy(fn ($pathway) => $pathway->subject->name),
+            // Whether this user could author a pathway for ANY subject here --
+            // the per-subject check happens on save.
+            'canPlan' => auth()->user()->can('academics.plan') || auth()->user()->can('academics.manage'),
             'linkableOutcomes' => $this->linkingObjectiveId
                 ? $objectives->linkableOutcomes($this->objective($this->linkingObjectiveId))
                 : collect(),

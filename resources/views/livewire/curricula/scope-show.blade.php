@@ -268,8 +268,81 @@
         @error('code') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
     </div>
 
+
+    {{-- Learning pathways (ATP). Several may be active at once: they are
+         alternative approved routes, not competing versions. --}}
+    <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold text-slate-700">{{ $vocabulary['pathways'] }}</h2>
+            @if ($objectivesEditable && $canPlan)
+                <button type="button" wire:click="$toggle('showAddPathway')" class="text-xs font-medium text-brand-navy hover:underline">+ Add</button>
+            @endif
+        </div>
+        <p class="mb-3 text-xs text-slate-500">
+            An ordered route through this {{ $vocabulary['basis'] }}. More than one may be in force &mdash; they are alternatives, not versions.
+        </p>
+
+        @if ($showAddPathway)
+            <form wire:submit="savePathway" class="mb-4 space-y-3 rounded-lg bg-slate-50 p-3">
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Subject</label>
+                    <select wire:model="pathway_subject_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        <option value="">Select a subject&hellip;</option>
+                        @foreach ($subjects as $subject)
+                            <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('pathway_subject_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Code (optional)</label>
+                        <input type="text" wire:model="pathway_code" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Title</label>
+                        <input type="text" wire:model="pathway_title" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                        @error('pathway_title') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Description (optional)</label>
+                    <textarea wire:model="pathway_description" rows="2" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy"></textarea>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Save Draft</button>
+                    <button type="button" wire:click="cancelPathway" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-white">Cancel</button>
+                </div>
+                @error('curriculum') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                @error('pathway') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+            </form>
+        @endif
+
+        @forelse ($pathways as $subjectName => $group)
+            <div class="mb-4 last:mb-0">
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $subjectName }}</p>
+                <ul class="divide-y divide-slate-100 text-sm">
+                    @foreach ($group as $pathway)
+                        <li class="flex flex-wrap items-center justify-between gap-2 py-2">
+                            <a href="{{ route('curricula.pathways.show', [$curriculum, $scope, $pathway]) }}" class="min-w-0 hover:underline">
+                                <span class="font-medium text-slate-900">{{ $pathway->title }}</span>
+                                @if ($pathway->code)<span class="ml-1 text-xs text-slate-500">{{ $pathway->code }}</span>@endif
+                            </a>
+                            <span class="flex flex-shrink-0 items-center gap-2 text-xs text-slate-500">
+                                {{ $pathway->items_count }} {{ Str::plural('step', $pathway->items_count) }}
+                                <x-status-badge :status="$pathway->status" />
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @empty
+            <p class="text-sm text-slate-500">No {{ $vocabulary['pathways'] }} yet.</p>
+        @endforelse
+    </div>
+
     <p class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        ATP is not implemented yet, and curriculum standards are not
+        Prota and Prosem are not implemented yet, and curriculum standards are not
         yet linked to teaching assignments.
     </p>
 </div>
