@@ -4,6 +4,60 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-14 - Phase V8A: Communication
+
+The rule this phase exists to enforce: COMMUNICATION CONTENT ≠ AUDIENCE ≠ RECIPIENT ≠ NOTIFICATION ≠ EXTERNAL DELIVERY ≠ CONVERSATION. And a second, equally load-bearing one: PUBLISHING ≠ EXTERNAL DELIVERY — V8A is honestly in-app only, and never claims otherwise.
+
+### Five concepts, five tables, no generic messages table
+`communications` (content), `communication_audience_rules` (+ four selected-entity join tables — draft-time targeting), `communication_recipients` (the frozen, deduplicated *who*), and Laravel's standard `notifications` table (the badge only). No `communication_deliveries` — there is no real external channel yet to track delivery status for, and building one now would be infrastructure nobody could exercise.
+
+### Audience Rules are typed rows, never a JSON filter
+Twelve rule types (`everyone`, `all_staff`, `staff_category`, `role`, `school_class_students`/`guardians`, `teaching_group_students`/`guardians`, `selected_staff`/`guardians`/`students`/`users`), each with its own explicit resolver method in `AudienceResolver` — the same "explicit builders over generic engines" shape as `EvidenceService`'s 8 providers. Which column is populated for a given rule_type is validated in `CommunicationService`, not sprawled across a DB CHECK.
+
+### Publish resolves fresh and materializes once, deduplicated
+`CommunicationService::publish()` re-resolves every audience rule live inside the transaction — never reusing an earlier preview — writes one `CommunicationRecipient` row per distinct canonical identity, and freezes content and audience permanently. A Guardian reached through three overlapping rules, or with two children in the matched audience, gets exactly one row. Verified directly: publishing, then mutating Class membership, a Guardian relationship, a Staff Category, and a role assignment, leaves every published record's recipient count completely unchanged.
+
+### Canonical identity ≠ resolved login
+`communication_recipients` carries exactly one of `staff_id`/`guardian_id`/`student_id`/`direct_user_id` — enforced by a CHECK on both drivers, portable via a `CASE`-summed expression rather than driver-specific syntax — plus a separate, optional `resolved_user_id`. Resolved via `ResolvesUnambiguousUser`, generalized this phase from Staff-only to Staff|Guardian|Student, so a shared or absent login yields `resolved_user_id = null` and the recipient row still exists. Never represented as a delivery failure — there is no delivery to fail.
+
+### Reachability is shown honestly
+A live Audience Preview (resolved / reachable-in-RSMS / unreachable) is re-resolved fresh at the moment of Publish, never trusted stale. A Guardian audience with zero reachable logins still publishes — Guardian/Student recipients are real, materialized history regardless of whether a login exists yet — but the UI says exactly that: *"N guardians will be recorded as recipients, but none currently have an RSMS login. This communication will not reach them outside RSMS."* Never "sent," never "delivered," never "notified" for a channel that doesn't exist.
+
+### Teacher scope, checked twice, independently
+`communications.manage` is the same permission name for `principal` and `teacher`, but a teacher's actual reach is checked against `TeacherAudienceScope` both when a rule is added to the draft AND again, freshly, at publish. Class authority is the union of two genuinely unsynced signals already in this codebase — `class_teacher` (no effective dating; approximated as current via the class's own academic year) and `class_subject` (effective-dated, the same source `TeachingModulePolicy`/`AssessmentPolicy` already trust) — documented as a limitation rather than silently picking one. Teaching Group authority has exactly one source, since groups have no separate teacher pivot. A teacher may never reach `everyone`, `all_staff`, `staff_category`, `role`, or an arbitrary Staff/User/Class/Group/Student/Guardian, proven by refusal tests for every one of them.
+
+### Added
+- `communications`, `communication_audience_rules`, `communication_audience_rule_staff`/`_guardians`/`_students`/`_users`, `communication_recipients`, `notifications` — 5 migrations (78 total), driver-split raw SQL for `communications`' status/published_at consistency CHECK and `communication_recipients`' exactly-one-identity CHECK.
+- `Communication`, `CommunicationAudienceRule`, `CommunicationAudienceRuleStaff`/`Guardian`/`Student`/`User`, `CommunicationRecipient` — the last deliberately NOT `Auditable` (materialization can create many rows in one Publish; the Communication's own "published" audit entry is the meaningful record, not a per-recipient flood).
+- `App\Communications`: `AudienceCandidate`, `AudienceResolver`, `TeacherAudienceScope`.
+- `CommunicationService` — draft CRUD, audience-rule add/remove with teacher-scope validation, live preview, the publish transaction, archive.
+- `CommunicationPolicy` — a dedicated policy; StudentPolicy was not widened to serve it.
+- `NewCommunicationPublished` — a Laravel database notification, minimal routing payload only.
+- `communications.view` / `communications.manage` permissions; granted to `principal` (manage, unscoped), `management` (view only), `teacher` (manage, scoped) — `admin_staff` deliberately unchanged.
+- 5 Livewire screens under `/communications/...`: Create, Show (draft editor with live audience preview and reachability warnings, and the published/archived read view in one component), Index (draft/published/archived tabs), Inbox.
+
+### Deliberately excluded
+- Real external delivery (email, WhatsApp, SMS) and `communication_deliveries` itself.
+- Scheduled publishing — deployment scheduler/queue-worker reliability is unknown; nothing is deployed yet.
+- Attachments — no concrete requirement or upload infrastructure to build on.
+- Two-way conversation, threads, replies — Communication stays outbound-only; a future thread model can reference it without becoming it.
+- Individual student-specific communication as its own type.
+- A Parent Portal — Guardian/Student recipients materialize correctly today with zero linked logins, ready for one later.
+
+### Authorization and audit
+Viewing any Communication (including drafts) that a non-teacher holds `communications.view`/`manage` for is unscoped; a teacher's own raw `communications.manage` grants them only what they authored plus what they are a materialized recipient of — never browsing everyone else's. `Communication`, `CommunicationAudienceRule` and the four selected-entity join models are `Auditable`; `CommunicationRecipient` and `read_at` updates are deliberately not, per the "no per-recipient audit flood" rule.
+
+### Tests
+`CommunicationTest` (12), `CommunicationAudienceTest` (26), `CommunicationMaterializationTest` (10), `CommunicationRecipientTest` (9), `CommunicationInboxTest` (11), `CommunicationPolicyTest` (11) — 79 new tests covering lifecycle immutability, every audience rule type for an unscoped principal and a scoped teacher (including historical-assignment refusal and scope re-validation at publish), materialization/dedup/historical-audience isolation from every kind of later mutation, the recipient-identity CHECK (including a raw-SQL attack), reachability counting, in-app inbox access and read semantics, Notification creation scoped to reachable recipients only, and role-based authorization including the "raw permission cannot bypass scope" proof. Suite: 781 to 860 passing.
+
+### Bug caught during browser verification
+`AudienceResolver::everyone()` concatenated raw `Student` models instead of `AudienceCandidate` objects into the resolved collection — a `TypeError` on the very first "Everyone" publish attempt through the real UI, not caught by the service-level tests because none of them exercised `everyone` end-to-end through a fully-wired preview. Fixed by mapping student IDs into candidates before concatenation; verified immediately after via the same UI flow.
+
+### Verification
+End-to-end through the actual browser UI, not only tinker: logged in as `super_admin` (exercising the unscoped path) and as a seeded `teacher` (exercising the scoped path). Drafted and published a school-wide "Everyone" announcement — audience preview correctly showed a live 5/2/3 resolved/reachable/unreachable split with the honest partial-reachability warning; publishing froze it, materialized 5 recipients, created 2 Notifications, and the finalized content became immutable (model-level `LogicException` confirmed). As a reachable Staff recipient, opened the inbox, saw the correct unread-badge state, and confirmed `read_at` was set on open — with no Archive control shown, since that account wasn't the author. As the teacher, the compose screen's audience-type dropdown correctly hid `everyone`/`all_staff`/`staff_category`/`role`/`selected_staff`/`selected_users` entirely, and correctly populated the Class picker with only that teacher's own current assignment; publishing a Class-students notice with zero reachable logins produced the exact required wording: *"Recorded as recipients — no RSMS login available for any of them. This communication was not delivered outside RSMS."* 375px: no horizontal overflow on the index or show screens.
+
+---
+
 ## 2026-08-13 - Phase V7A: Staff Performance Evaluation
 
 The rule this phase exists to enforce: SYSTEM EVIDENCE ≠ HUMAN PROFESSIONAL JUDGEMENT. No automated evidence may generate, suggest, or default a rating — enforced structurally, by keeping evidence and ratings in entirely separate services that never call into each other, not merely documented as a policy.

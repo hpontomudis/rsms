@@ -42,6 +42,11 @@ class RolesAndPermissionsSeeder extends Seeder
             // a policy carve-out, not a permission.
             'performance.view',
             'performance.manage',
+            // Broad at the permission level; teacher's actual reach is scoped
+            // by CommunicationPolicy to their own current assignments -- the
+            // permission alone never authorises a school-wide audience.
+            'communications.view',
+            'communications.manage',
         ];
 
         foreach ($permissions as $permission) {
@@ -65,6 +70,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'academics.view', 'academics.manage', 'academics.plan',
                 // The principal is the evaluator: creates, edits, finalizes.
                 'performance.manage',
+                // School-wide publishing authority -- any audience.
+                'communications.manage',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
@@ -83,6 +90,9 @@ class RolesAndPermissionsSeeder extends Seeder
                 'students.view', 'classes.view',
                 'attendance.record', 'attendance.view',
                 'academics.plan', 'academics.record', 'academics.view',
+                // Scoped to their own current Classes/Teaching Groups by
+                // CommunicationPolicy -- see its docblock.
+                'communications.manage',
             ]);
 
         Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web'])
@@ -98,6 +108,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 // Read-only cross-module oversight, which is this role's whole
                 // purpose -- extends naturally to reading (not judging) ratings.
                 'performance.view',
+                // Read-only here too -- management does not publish.
+                'communications.view',
             ]);
 
         // Parent-portal access is scoped via the student_guardian relation,

@@ -12,6 +12,7 @@ use App\Livewire\Assessments;
 use App\Livewire\Attendance;
 use App\Livewire\Auth\Login;
 use App\Livewire\Classes;
+use App\Livewire\Communications;
 use App\Livewire\Curricula;
 use App\Livewire\Dashboard;
 use App\Livewire\EnglishProgrammes;
@@ -176,6 +177,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/create', Performance\Evaluations\Create::class)->name('create');
             Route::get('/{evaluation}', Performance\Evaluations\Show::class)->name('show');
         });
+    });
+
+    Route::prefix('communications')->name('communications.')->group(function () {
+        Route::get('/', Communications\Index::class)->name('index');
+        Route::get('/create', Communications\Create::class)->name('create');
+        Route::get('/inbox', Communications\Inbox::class)->name('inbox');
+        Route::get('/{communication}', Communications\Show::class)->name('show');
     });
 
     Route::prefix('assessments')->name('assessments.')->group(function () {

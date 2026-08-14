@@ -623,12 +623,46 @@ The original goal said "DOCX/PDF". Phase 6A delivered browser-native print for a
 
 ## V8 — Communication
 
-Status: Planned (not started; renumbered from V7 to make room for Staff Performance Evaluation above)
+Status: **Phase V8A complete.** School-authored Communications, explicit Audience Rules, recipients materialized and frozen at Publish, in-app delivery only.
 
-Anticipated features (from the original PRD, not yet scoped in detail):
-- Announcements (school-wide / grade / class scoped)
-- Parent follow-up logs
-- Notifications (in-app / email)
+**Five concepts, deliberately never collapsed into one generic messages table:**
+
+| Concept | What it is | Where it lives |
+|---|---|---|
+| Communication content | title/body/priority/sender, what was said | `communications` |
+| Audience | draft-time targeting intent (typed rule rows) | `communication_audience_rules` (+ 4 selected-entity join tables) |
+| Recipient | the frozen, deduplicated *who*, as of Publish | `communication_recipients` |
+| Notification | "you have something new" badge only | `notifications` (Laravel's standard shape) |
+| External delivery | email/WhatsApp/etc. | **not built in V8A** — the seam is left open, nothing more |
+
+And one further split within recipients: **PUBLISHING != EXTERNAL DELIVERY.** Publish only ever writes canonical rows and creates in-app Notifications — there is no external provider call inside the transaction, so it either fully commits or fully rolls back. V8A is honestly in-app only; it never claims to have sent an email or a WhatsApp message, because it never tries to.
+
+**Lifecycle: draft → published → archived.** Draft is fully editable — content and audience rules both — and deletable. Publish freezes content and audience permanently; the ONE transition a published row may still make is to archived, which is presentation-only (hides from "current" views, never touches recipient history, never retracts anything). A mistake in a published Communication is fixed by publishing a new one — no correction/replacement/supersession path, same reasoning as Performance Evaluation.
+
+**Audience Rules are typed, explicit rows — never a JSON filter, never one generic `target_id` whose meaning shifts by type.** 12 rule types: `everyone`, `all_staff`, `staff_category`, `role`, `school_class_students`, `school_class_guardians`, `teaching_group_students`, `teaching_group_guardians`, `selected_staff`, `selected_guardians`, `selected_students`, `selected_users`. `AudienceResolver` (`app/Communications/`) has one explicit method per rule_type, the same "explicit builders over generic engines" shape as `EvidenceService`'s 8 providers.
+
+**Publish resolves every rule fresh and writes `communication_recipients` once, deduplicated by canonical identity.** A Guardian reached through three overlapping rules, or with two children in the matched audience, gets exactly one recipient row. Later Class/Group membership changes, Guardian relationship changes, StaffCategory reassignment, or role changes are all invisible to that frozen history — proven by mutating each of them after publish and re-reading the recipient count.
+
+**CANONICAL RECIPIENT IDENTITY is not the same question as RESOLVED LOGIN USER.** `communication_recipients` has exactly one of `staff_id` / `guardian_id` / `student_id` / `direct_user_id` (enforced by a DB CHECK, portable across PostgreSQL and SQLite), plus a separate `resolved_user_id` — the login, if any, that can open it in-app. Resolved via the same exact-match discipline V7A built (`ResolvesUnambiguousUser`, now generalised to Staff/Guardian/Student alike): a shared or absent login yields `resolved_user_id = null`, and the recipient row still exists. **That is never represented as a delivery failure** — V8A has no external delivery to fail.
+
+**Reachability is shown honestly, never overstated.** Before Publish, a live Audience Preview shows resolved / reachable-in-RSMS / unreachable counts, re-resolved fresh (never a stale cached number) at the moment of Publish itself. A zero-reachable Guardian audience is not blocked — it is recorded as recipients, with an explicit warning: *"N guardians will be recorded as recipients, but none currently have an RSMS login. This communication will not reach them outside RSMS."* The published view never says "delivered," "sent," or "notified" for a channel V8A doesn't have.
+
+**Laravel database Notifications are the badge only.** `CommunicationRecipient` is the canonical access/history record; a `NewCommunicationPublished` notification is created *only* for recipients with a resolved login, carrying nothing but routing data (`communication_id`, title, sender, priority). Deleting or reading the Notification never touches `communication_recipients` — `read_at` there means exactly one thing, "opened inside RSMS," and is never conflated with "delivered" or "read on WhatsApp."
+
+**Teacher authorization is scoped at both the policy AND the service layer, independently.** `communications.manage` is broad at the permission level for both `principal` and `teacher` — the same permission name — but a teacher's actual reach is checked against `TeacherAudienceScope` twice: once when a rule is added to the draft, and again, freshly, at Publish (in case an assignment closed in between). A teacher may target only Classes/Teaching Groups they *currently, actively* teach, and Students/Guardians within them — never `everyone`, `all_staff`, `staff_category`, `role`, arbitrary `selected_staff`, or arbitrary `selected_users`. **Class authority is the union of two genuinely unsynced signals this codebase already has**: `class_teacher` (homeroom/assistant/subject_teacher, no effective dating of its own — approximated as "current" via the class's own academic year) and `class_subject` (effective-dated subject-teaching, the same source `TeachingModulePolicy`/`AssessmentPolicy` already trust). Teaching Group authority has exactly one source, `class_subject`, since Teaching Groups have no separate teacher pivot.
+
+**Recipient read access depends only on a materialized `CommunicationRecipient` row, never on current Class/Group membership.** A teacher who currently teaches the same class a notice went to, but was never themselves a recipient, cannot read it. `CommunicationPolicy` is a dedicated policy — StudentPolicy was not widened to serve it.
+
+**Role grants:** `principal` → `communications.manage`, unscoped (any audience, any Communication). `management` → `communications.view` only (read, never publish — consistent with its read-only posture everywhere else). `teacher` → `communications.manage`, scoped as above. `admin_staff` → neither, by default.
+
+**Not built in V8A, deliberately:**
+- Real external delivery (email, WhatsApp, SMS) — `MAIL_MAILER=log` is not a real channel, and no WhatsApp integration exists. The Communication/Recipient split leaves the seam open; a future `communication_deliveries` table and provider adapters are additive, not a redesign.
+- `communication_deliveries` itself — not created in V8A, because there is no real channel yet to track delivery status for.
+- Scheduled publishing — nothing is deployed yet, so scheduler/queue-worker reliability on the eventual host is unknown. Publish is immediate and synchronous only.
+- Attachments — no concrete requirement, no general upload infrastructure to build on.
+- Two-way conversation / threads / replies — Communication is outbound, school-authored content only. A future `communication_threads`/`thread_participants`/`messages` set could reference a Communication optionally without it ever becoming a chat-message table.
+- Individual student-specific communication as its own type — general/class-scoped notices only; a later increment if a real requirement appears.
+- Parent portal — Guardian/Student recipients materialize correctly today even with zero linked logins, ready for a future portal or delivery adapter, but no portal UI exists yet.
 
 ---
 

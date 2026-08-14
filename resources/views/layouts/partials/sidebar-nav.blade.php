@@ -68,6 +68,16 @@
                     ? $navItem('performance.my-evaluations', 'My Evaluations', 'staff') : null,
             ])),
         ],
+        [
+            'label' => 'Communications',
+            'items' => array_values(array_filter([
+                Route::has('communications.index') && ($user->can('communications.view') || $user->can('communications.manage'))
+                    ? $navItem('communications.index', 'Communications', 'subjects', ['communications.index', 'communications.create', 'communications.show']) : null,
+                // No permission required: anyone may hold a materialized
+                // CommunicationRecipient row and have something to read.
+                Route::has('communications.inbox') ? $navItem('communications.inbox', 'My Inbox', 'subjects') : null,
+            ])),
+        ],
     ];
 @endphp
 

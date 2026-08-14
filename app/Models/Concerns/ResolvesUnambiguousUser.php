@@ -2,34 +2,37 @@
 
 namespace App\Models\Concerns;
 
+use App\Models\Guardian;
 use App\Models\Staff;
+use App\Models\Student;
 
 /**
- * The exact-match rule both audit-derived evidence AND self-view
- * authorization depend on.
+ * The exact-match rule audit-derived evidence, self-view authorization, AND
+ * Communication recipient resolution all depend on.
  *
- * `staff.user_id` carries no unique index, so more than one Staff row can
- * share one login. Given the Staff in question, their OWN user_id is not
- * ambiguous to read -- but if that same user_id is ALSO used by a different
- * Staff row, it is unclear which of them a shared login actually identifies
- * (an audit_logs entry could have been made by either; a logged-in User could
- * be viewing on behalf of either). That is the ambiguity this resolves: not
- * "which Staff does this User belong to", but "is this login exclusively this
- * Staff member's".
+ * `user_id` carries no unique index on staff, guardians or students, so more
+ * than one row of the same type can share one login. Given the entity in
+ * question, its OWN user_id is not ambiguous to read -- but if that same
+ * user_id is ALSO used by another row of the same type, it is unclear which
+ * one a shared login actually identifies. That is the ambiguity this
+ * resolves: not "which entity does this User belong to", but "is this login
+ * exclusively this entity's".
  *
  * Returns null whenever attribution would require a guess: no login at all,
- * or a login shared with another Staff row. Never `first()`.
+ * or a login shared with another row of the same type. Never `first()`, and
+ * never Eloquent's `HasOne` (which would silently pick one of several matches
+ * rather than surface the ambiguity).
  */
 trait ResolvesUnambiguousUser
 {
-    private function unambiguousUserId(Staff $staff): ?int
+    private function unambiguousUserId(Staff|Guardian|Student $entity): ?int
     {
-        if ($staff->user_id === null) {
+        if ($entity->user_id === null) {
             return null;
         }
 
-        $sharing = Staff::where('user_id', $staff->user_id)->count();
+        $sharing = $entity::where('user_id', $entity->user_id)->count();
 
-        return $sharing === 1 ? $staff->user_id : null;
+        return $sharing === 1 ? $entity->user_id : null;
     }
 }
