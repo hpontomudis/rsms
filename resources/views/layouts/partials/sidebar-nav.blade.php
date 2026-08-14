@@ -53,6 +53,21 @@
                 Route::has('fee-structures.index') && $user->can('finance.view') ? $navItem('fee-structures.index', 'Fee Structures', 'fee-structures') : null,
             ])),
         ],
+        [
+            'label' => 'Performance',
+            'items' => array_values(array_filter([
+                Route::has('performance.evaluations.index') && ($user->can('performance.view') || $user->can('performance.manage'))
+                    ? $navItem('performance.evaluations.index', 'Evaluations', 'staff', 'performance.evaluations.*') : null,
+                Route::has('performance.frameworks.index') && ($user->can('performance.view') || $user->can('performance.manage'))
+                    ? $navItem('performance.frameworks.index', 'Frameworks', 'staff', 'performance.frameworks.*') : null,
+                Route::has('performance.staff-categories.index') && ($user->can('performance.view') || $user->can('performance.manage'))
+                    ? $navItem('performance.staff-categories.index', 'Staff Categories', 'staff') : null,
+                // No permission required: self-view is a policy carve-out, not
+                // a permission -- shown to anyone with a linked staff profile.
+                Route::has('performance.my-evaluations') && $user->staff()->exists()
+                    ? $navItem('performance.my-evaluations', 'My Evaluations', 'staff') : null,
+            ])),
+        ],
     ];
 @endphp
 

@@ -567,9 +567,63 @@ The original goal said "DOCX/PDF". Phase 6A delivered browser-native print for a
 
 ---
 
-## V7 — Communication
+## V7 — Staff Performance Evaluation
 
-Status: Planned (not started; renumbered from V5 to make room for Academic & Teaching Administration above)
+### Phase V7A *(complete)*
+
+**The governing principle this module exists to enforce:** SYSTEM EVIDENCE ≠ HUMAN PROFESSIONAL JUDGEMENT. No automated evidence may generate, suggest, or default a rating — enforced structurally, not just documented. No method anywhere resembles `autoRateIndicator()`, `calculateRubricFromEvidence()`, or `evidenceValueToRating()`. Evidence and ratings are written by entirely different services and never read from one another.
+
+| | System Evidence | Human Response |
+|---|---|---|
+| What it is | a live-computed fact about teaching activity | the evaluator's professional judgement |
+| Written by | `EvidenceService`, recomputed fresh every time | `PerformanceEvaluationItemService::respond()` only |
+| Storage | `performance_evidence`, snapshotted at finalize | `performance_evaluation_items` response columns |
+| Can it set a rating | never | is the rating |
+
+**Staff Categories** are the applicability key — what a Performance Framework applies to (Teacher, Academic Leadership, Administration, Driver, Security, Support Staff). A category referenced by staff or a framework refuses deletion; unused categories delete cleanly.
+
+**A Performance Framework** is a versioned rubric: sections group indicators, each indicator is one of four response types (`rubric`, `numeric`, `boolean`, `narrative`), and a rating scale (value + label) applies framework-wide. Structure is editable only while `draft` — the same lifecycle discipline as Curriculum: activation freezes every section, indicator and rating option, requires at least one section, at least one indicator per section, and at least one rating option. Archiving stops new evaluations without disturbing work already in flight, because structure was already frozen at activation.
+
+**The Evidence Registry is a closed, hardcoded catalogue of 8 keys** — not a database table, not arbitrary SQL/JSON configuration — the same reasoning that kept Phase 6A's document generation to explicit builders rather than a generic engine. Adding a ninth key is a code change requiring a real provider class, not a data change an indicator could quietly reference without review:
+
+| Key | What it answers |
+|---|---|
+| `teaching_module_count` | modules recorded, by assignment responsibility |
+| `daily_journal_count` | journals recorded, by assignment responsibility |
+| `journal_conducted_count` | sessions actually conducted, by journal author |
+| `assessment_count` | assessments recorded, by assignment responsibility |
+| `annual_programme_context` | does the roster have a plan (existence, not authorship) |
+| `semester_programme_context` | does the roster have a scheduled semester (existence, not authorship) |
+| `annual_programme_contribution` | edits attributed to this staff member specifically, audit-derived |
+| `semester_programme_contribution` | edits attributed to this staff member specifically, audit-derived |
+
+**"Available at zero" is never confused with "unavailable."** A teacher who has genuinely written no modules yet reads `0`; a teacher whose evidence cannot be attributed at all (no linked login, or a login shared by more than one Staff row) reads `unavailable` with the specific reason. `EvidenceAvailability` is a first-class enum, never inferred from `null`.
+
+**An Evaluation auto-provisions one item per framework indicator at creation.** This is the design decision that eliminates any need for a separate "does this indicator belong to this evaluation's framework" check: items only ever exist for indicators that were on the framework at creation time, and framework structure is frozen the moment it activates. The evaluator, staff category (copied at creation, never re-derived even at finalization), and framework version are all fixed for the life of the row.
+
+**Every response is written through one service, and it is the only place the four response columns are ever touched.** `PerformanceEvaluationItemService::respond()` accepts exactly one type-appropriate field per indicator — a numeric value on a rubric indicator is refused, not silently dropped, with a message naming the indicator and the field. Manual evidence is a real, independently-editable child record while the parent is draft; system evidence is written only inside `finalize()`.
+
+**Finalization is one transaction that snapshots everything.** In order: every provisioned item must have a response (named in the refusal if not); an overall rating is required; every configured system evidence source is recomputed **live** — never reused from an earlier preview — and written as a fresh `PerformanceEvidence` row; manual evidence already on the record is preserved untouched; staff identity, position, staff category, framework name/code/version, evaluator name (`User::name`, never `Staff::fullName()` — an evaluator may hold no Staff row at all), and every section/indicator's wording, order and type are snapshotted onto the record and its items. Finalizing an evaluation whose framework was **archived after creation is explicitly allowed** — the structure was already frozen at activation, and archiving governs new work, not work already in flight.
+
+**Finalized is immutable, with no correction path in this version.** No manager-edit, no supersession, no "unfinalize," and no replacement workflow for the SAME staff+framework+exact period — the unique index on those four columns already forbids re-evaluating that exact scope. A later evaluation is legitimate only when it represents a genuinely different period, framework or framework version, never dates picked merely to get around the constraint; the mistaken row is never rewritten or deleted. Chosen deliberately as the smaller, safer first version — a correction workflow with no concrete Rahai requirement driving its shape would have been invented, not designed. If Rahai ever needs to correct a finalized appraisal, that is a separate, explicitly designed future workflow (manager correction, or void/replacement/supersession), not something achieved by juggling this evaluation's dates.
+
+**Self-view is a policy carve-out, not a permission.** A staff member may read their own evaluation only once it is **finalized** — a draft is an evaluator's in-progress notes, not the finished, accountable record — and only when their login is exclusively theirs. `staff.user_id` carries no unique index, so a shared login is refused rather than guessed at, using the same exact-match rule (`ResolvesUnambiguousUser`) that decides whether audit-derived evidence can be attributed to a staff member at all: given the Staff being evaluated, the ambiguity is whether *their own* `user_id` is exclusively theirs, not which Staff a User belongs to. Role grants stay conservative: `principal` holds `performance.manage` (creates, edits, finalizes — the principal is the evaluator), `management` holds `performance.view` (reads any record, including drafts, but writes nothing), and `teacher`/`admin_staff` hold neither permission — self-view still works for them, because it is the carve-out, not a grant.
+
+**UI is deliberately plain.** No leaderboard, no cross-staff ranking, no auto-score, no red/green badges. System evidence renders in a visually subordinate blue/gray context box with an explicit disclaimer ("System record for context. It does not set or suggest the rating."), separate from and beneath the response control. Routes live under `/performance/...`, separate from `/staff/...`.
+
+**Not included in Phase V7A, deliberately:**
+- Printing / PDF export of an evaluation. Explicitly deferred by the approving instruction.
+- Staff self-acknowledgement or a reflection/response field on a finalized evaluation.
+- A correction or amendment path for a finalized evaluation — see above.
+- Any automated or calculated overall rating, score, or leaderboard.
+- Staff attendance as evidence, and safeguarding/discipline records — out of scope for this module.
+- Communication of results (an evaluation meeting, a PDF handed to the employee) — a process outside the system, not a screen.
+
+---
+
+## V8 — Communication
+
+Status: Planned (not started; renumbered from V7 to make room for Staff Performance Evaluation above)
 
 Anticipated features (from the original PRD, not yet scoped in detail):
 - Announcements (school-wide / grade / class scoped)
@@ -578,9 +632,9 @@ Anticipated features (from the original PRD, not yet scoped in detail):
 
 ---
 
-## V8 — AI-Assisted Management
+## V9 — AI-Assisted Management
 
-Status: Planned (not started; renumbered from V6)
+Status: Planned (not started; renumbered from V8)
 
 ---
 

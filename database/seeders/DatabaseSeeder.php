@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             GradeSeeder::class,
             PositionSeeder::class,
+            StaffCategorySeeder::class,
             AcademicYearSeeder::class,
             // Must follow AcademicYearSeeder -- periods hang off a year.
             AcademicPeriodSeeder::class,

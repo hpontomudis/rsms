@@ -4,6 +4,59 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-13 - Phase V7A: Staff Performance Evaluation
+
+The rule this phase exists to enforce: SYSTEM EVIDENCE ≠ HUMAN PROFESSIONAL JUDGEMENT. No automated evidence may generate, suggest, or default a rating — enforced structurally, by keeping evidence and ratings in entirely separate services that never call into each other, not merely documented as a policy.
+
+### Staff Categories, then a versioned Framework
+`StaffCategory` is the applicability key a Performance Framework targets. A Framework is a versioned rubric — sections group indicators (`rubric`/`numeric`/`boolean`/`narrative`), plus a framework-wide rating scale — with the same draft/active/archived lifecycle discipline as Curriculum: structure edits only while draft, activation requires at least one section, one indicator per section, and one rating option, and archiving stops new evaluations without disturbing work already in flight.
+
+### A closed evidence registry, not a query builder
+Eight hardcoded keys (`EvidenceRegistry::KEYS`) — module/journal/session/assessment counts by assignment responsibility, roster-plan existence for Prota and Prosem, and audit-derived individual contribution to each. Adding a ninth is a code change requiring a real provider class, the same reasoning that kept Phase 6A's document generation to explicit builders. Every provider distinguishes **available-at-zero** from **unavailable** through a first-class `EvidenceAvailability` enum — never inferred from `null`.
+
+### One evaluator, one item per indicator, one response service
+An Evaluation auto-provisions one item per framework indicator at creation, eliminating any need to check whether an item's indicator actually belongs to the evaluation's framework — an item only ever exists for an indicator that was on the framework when the evaluation was created, and structure is frozen the moment a framework activates. `PerformanceEvaluationItemService::respond()` is the only place a response is ever written, and it accepts exactly one type-appropriate field per indicator — a numeric value offered to a rubric indicator is refused by name, not silently dropped.
+
+### Finalize: one transaction, everything snapshotted, live
+Every provisioned item must have a response (the specific unanswered indicator is named in the refusal); an overall rating is required; every configured evidence source is **recomputed live** — never reused from an earlier draft preview — and written as a fresh, permanent `PerformanceEvidence` row; existing manual evidence is preserved untouched; staff identity, position, staff-category name, framework name/code/version, evaluator name (always `User::name`, never `Staff::fullName()` — an evaluator may hold no Staff row), and every section/indicator's wording and order are snapshotted onto the header and its items. An archived framework does **not** block finalizing an evaluation already in flight — structure froze at activation, and archiving governs new work, not work already underway.
+
+Verified directly: finalizing, then mutating the staff member's name, framework name, and every other upstream source, leaves the finalized record's snapshots completely unchanged while the live view moves.
+
+### Finalized is immutable — no correction path in this version
+No manager-edit, no supersession, no "unfinalize," and no replacement workflow for the same staff+framework+exact period — the unique index on those four columns already forbids re-evaluating that exact scope, and V7A adds no workaround for it. A later evaluation is legitimate only when it represents a genuinely different period, framework or version; the original mistaken row is never rewritten or deleted. Verified by every field and by the model, service, and policy layers independently refusing every kind of write. A future correction/replacement workflow, if Rahai ever needs one, is a separate feature to be designed on its own terms.
+
+### Self-view is a policy carve-out, not a permission
+A staff member may read their own evaluation only once **finalized** — a draft is an evaluator's in-progress notes — and only when their login is exclusively theirs. `staff.user_id` carries no unique index, so a shared login is refused rather than guessed at, using the exact same rule (`ResolvesUnambiguousUser`, promoted out of `App\Evidence\Concerns` into `App\Models\Concerns` mid-phase once it became clear both the evidence layer and the policy layer needed it) that decides whether audit-derived contribution evidence can be attributed to a staff member at all. Role grants stay conservative: `principal` holds `performance.manage`, `management` holds `performance.view` (read any record, write nothing), and `teacher`/`admin_staff` hold neither — self-view still works for them regardless, because it is the carve-out, not a grant.
+
+### Added
+- `staff_categories`, `performance_frameworks`, `performance_sections`, `performance_indicators`, `performance_rating_options`, `performance_evaluations`, `performance_evaluation_items`, `performance_evidence` — 9 migrations, driver-split raw SQL for `performance_evaluations` where genuine CHECK constraints and a finalized-fields-consistency constraint needed expression beyond Blueprint.
+- `StaffCategory`, `PerformanceFramework`, `PerformanceSection`, `PerformanceIndicator`, `PerformanceRatingOption`, `PerformanceEvaluation`, `PerformanceEvaluationItem`, `PerformanceEvidence`, plus `StaffCategoryService`, `PerformanceFrameworkService`, `PerformanceEvaluationService`, `PerformanceEvaluationItemService`.
+- `App\Evidence`: `EvidenceRegistry`, `EvidenceAvailability`, `SystemEvidence`, `EvidenceService`, and 8 provider classes.
+- `PerformanceFrameworkPolicy`, `PerformanceEvaluationPolicy` — the latter carrying the self-view exact-match carve-out.
+- `performance.view` / `performance.manage` permissions; granted to `principal` (manage) and `management` (view only) — `teacher` and `admin_staff` deliberately unchanged.
+- 8 Livewire screens under `/performance/...`: Staff Categories, Frameworks (index/create/show with inline section/indicator/rating-option authoring), Evaluations (index/create/show — one component spanning the draft workspace and the finalized read view), and a self-service "My Evaluations" list.
+
+### Discovered mid-phase: mass query-builder writes bypass Eloquent events too
+Already known for `attach()`/`detach()`/`sync()`; rediscovered when an ad-hoc verification script used `Model::where(...)->delete()` to clean up test data and silently bypassed a Framework's own structure-frozen guards. `->get()->each->delete()` fires events correctly and is what every service in this codebase actually uses. No production code was affected — only a throwaway script — but it's now written down as a standing caution.
+
+### Deliberately excluded
+- Printing / exporting a Performance Evaluation.
+- Any correction, amendment or supersession path for a finalized evaluation.
+- Any automated or calculated overall rating, score, or leaderboard — evidence is context, never a computation input.
+- Staff attendance as evidence; safeguarding/discipline records — out of scope for this module.
+- Staff self-acknowledgement of a finalized evaluation.
+
+### Authorization and audit
+Reading framework structure and any evaluation (including drafts) uses `performance.view`/`performance.manage`; writing anything requires `performance.manage`. Self-view is the one exception, gated entirely by policy rather than by a permission. Every new model except `PerformanceEvidence`'s deletion path is `Auditable`; `PerformanceEvidence` is deliberately auditable throughout, unlike other write-once child models in this project, because manual evidence has genuine independent CRUD while its parent evaluation is draft.
+
+### Tests
+`PerformanceFrameworkTest` (20), `PerformanceEvaluationTest` (31), `PerformanceEvidenceTest` (18), `PerformancePolicyTest` (10) — 79 new tests covering framework lifecycle, the response-type firewall, manual and system evidence, the full finalization transaction, snapshot isolation from upstream mutation, immutability, the no-correction-path rule, all 8 evidence providers' available/unavailable behaviour, and the self-view exact-match carve-out including the shared-login refusal. Suite: 702 to 781 passing.
+
+### Verification
+Fresh PostgreSQL install (73 migrations) in an isolated database, running the full approved scenario: staff categorized, a framework built with all four indicator types and two rating options, activated, an evaluation created against it. Live evidence correctly distinguished *unavailable* (no overlapping teaching assignment) from *available at zero* (a real, attributable count). Roster-plan **context** and audit-derived individual **contribution** confirmed as two independently-computed evidence keys. Manual evidence added; all four response types filled; an overall rating selected; finalized. Every display-source field — staff name, staff-category name, position title — was then mutated, and the finalized record's snapshots were unchanged while the live records diverged. A **new** journal entry was added to the staff member's teaching record after finalization specifically to prove the point: the live evidence count moved to 1, and the finalized snapshot stayed frozen at 0 — evidence really is captured once, not read live. A login shared by two staff rows read *unavailable* with the specific reason, never a guessed zero. The staff member could view their own finalized record; an unrelated teacher could not. `management` could read but not create; `principal` could create, respond, and finalize. Zero defects found. Verification database dropped; the dev database's Performance record counts (3 evaluations, 3 frameworks) were unchanged before and after, confirming no cross-contamination.
+
+---
+
 ## 2026-08-12 - Phase 6A: Reporting & Document Generation
 
 The separation this phase exists to make: a LIVE report card is a view of current data; a PUBLISHED Academic Record is a record of what was issued. They are allowed to disagree, and when they do, the disagreement is the point - a family holds a printed copy of the issued numbers.

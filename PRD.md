@@ -73,8 +73,9 @@ Roles and permissions are implemented with `spatie/laravel-permission`. The auth
 | Academics (Subjects, Assessments, Report Cards) | V4 | Complete |
 | Academic & Teaching Administration (Curriculum → CP → TP → ATP → Prota → Prosem → Teaching Modules → Daily Journals) | V5 | **Complete** — the full chain is built (Steps 0-2e, Phases 5A-5F). Session attendance, teacher student-scoping and Kindergarten developmental reporting remain out of scope |
 | Reporting & Document Generation (printable Rapor + Prota/Prosem/ATP/Modul Ajar/Jurnal, and published Academic Records) | V6 | **Phase 6A complete** — browser-native print for all seven document types; issued report cards are immutable period-scoped snapshots. Attendance on the rapor, KG developmental reporting and a server-side PDF renderer remain out of scope |
-| Communication | V7 | Planned |
-| AI-assisted reporting | V8 | Planned |
+| Staff Performance Evaluation (Categories, Frameworks, evidence-informed evaluations) | V7 | **Phase V7A complete** — system evidence is context only and never sets a rating; finalization snapshots the record permanently with no correction path. Printing an evaluation is out of scope |
+| Communication | V8 | Planned |
+| AI-assisted reporting | V9 | Planned |
 
 See `MODULES.md` for the authoritative, per-module feature breakdown and status.
 
@@ -142,8 +143,9 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 | V5.4 | Phase 5D — Learning Pathways (ATP), ordered TP sequences | Complete (current build) |
 | V5.0 | Academic & Teaching Administration (planning entities) | **Approved, not started** — the prerequisite steps above are built; Curriculum onward awaits explicit go-ahead |
 | V6.0 | Reporting & Document Generation | **Phase 6A complete.** A LIVE report card is a view of current data; a PUBLISHED Academic Record (student + academic period) is a frozen snapshot taken at publish. Planning documents render canonically and store nothing. Print is browser-native — no PDF dependency, no stored files |
-| V7.0 | Communication | Not started (renumbered from V5 to make room for V5.0 above) |
-| V8.0 | AI-assisted management | Not started (renumbered from V6) |
+| V7.0 | Staff Performance Evaluation | **Phase V7A complete.** System evidence (teaching-activity facts) and human ratings are written by entirely different services and never read from one another. Finalization snapshots the record permanently; there is no correction path. Self-view of one's own finalized record is a policy carve-out, not a permission |
+| V8.0 | Communication | Not started (renumbered from V7 to make room for V7.0 above) |
+| V9.0 | AI-assisted management | Not started (renumbered from V8) |
 
 ## 12. Future Roadmap (not committed, not designed in detail)
 
@@ -152,8 +154,8 @@ Full per-module functional detail lives in `MODULES.md`. At the product level:
 - Document generation (V6) — structured Phase 5 data rendered into printable Prota/Prosem/ATP/Modul Ajar/Jurnal/Rapor documents. Explicitly deferred until Phase 5's data model exists and is stable.
 - Parent portal (login scoped via `student_guardian`, read-only view of their own children's attendance/fees/grades).
 - Excel/CSV bulk import + export for Students (and later Guardians/Staff) — requested, not yet scoped or built. Design note: guardian relationships don't fit one flat row cleanly; likely solved with repeated `guardian_1_*`/`guardian_2_*` columns rather than a second linked sheet.
-- Communication module (V7): announcements, follow-up logs, notifications.
-- AI-assisted natural-language reporting (V8, read-only, query-grounded — never a free-form number generator).
+- Communication module (V8): announcements, follow-up logs, notifications.
+- AI-assisted natural-language reporting (V9, read-only, query-grounded — never a free-form number generator).
 - Multi-school support (not blocked by current schema, not built).
 
 ---

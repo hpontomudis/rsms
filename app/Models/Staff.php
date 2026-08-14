@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'staff_number', 'first_name', 'last_name', 'position_id', 'phone',
-    'email', 'hire_date', 'status', 'user_id',
+    'staff_number', 'first_name', 'last_name', 'position_id', 'staff_category_id',
+    'phone', 'email', 'hire_date', 'status', 'user_id',
 ])]
 class Staff extends Model
 {
@@ -30,6 +30,11 @@ class Staff extends Model
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
+    }
+
+    public function staffCategory(): BelongsTo
+    {
+        return $this->belongsTo(StaffCategory::class);
     }
 
     public function user(): BelongsTo
@@ -73,5 +78,10 @@ class Staff extends Model
     public function classSubjects(): HasMany
     {
         return $this->hasMany(ClassSubject::class);
+    }
+
+    public function performanceEvaluations(): HasMany
+    {
+        return $this->hasMany(PerformanceEvaluation::class);
     }
 }

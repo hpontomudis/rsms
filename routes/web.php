@@ -19,6 +19,7 @@ use App\Livewire\FeeStructures;
 use App\Livewire\Guardians;
 use App\Livewire\Invoices;
 use App\Livewire\LearningPhases;
+use App\Livewire\Performance;
 use App\Livewire\Planning;
 use App\Livewire\Staff;
 use App\Livewire\Students;
@@ -157,6 +158,24 @@ Route::middleware('auth')->group(function () {
         Route::get('/modules/{teachingModule}', Teaching\ModuleShow::class)->name('modules.show');
         Route::get('/{classSubject}/journal', Teaching\Journals::class)->name('journal.index');
         Route::get('/journal/{dailyJournal}', Teaching\JournalShow::class)->name('journal.show');
+    });
+
+    Route::prefix('performance')->name('performance.')->group(function () {
+        Route::get('/staff-categories', Performance\StaffCategories\Index::class)->name('staff-categories.index');
+
+        Route::prefix('frameworks')->name('frameworks.')->group(function () {
+            Route::get('/', Performance\Frameworks\Index::class)->name('index');
+            Route::get('/create', Performance\Frameworks\Create::class)->name('create');
+            Route::get('/{framework}', Performance\Frameworks\Show::class)->name('show');
+        });
+
+        Route::get('/my-evaluations', Performance\Evaluations\MyEvaluations::class)->name('my-evaluations');
+
+        Route::prefix('evaluations')->name('evaluations.')->group(function () {
+            Route::get('/', Performance\Evaluations\Index::class)->name('index');
+            Route::get('/create', Performance\Evaluations\Create::class)->name('create');
+            Route::get('/{evaluation}', Performance\Evaluations\Show::class)->name('show');
+        });
     });
 
     Route::prefix('assessments')->name('assessments.')->group(function () {

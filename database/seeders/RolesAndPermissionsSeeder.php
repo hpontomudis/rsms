@@ -35,6 +35,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'academics.plan',
             'academics.record',
             'academics.view',
+            // Staff performance evaluation is HR-sensitive and deliberately
+            // does NOT ride on staff.view or academics.view -- a role that can
+            // see the staff directory or teaching data should not thereby see
+            // appraisal ratings. Self-view of one's own finalized evaluation is
+            // a policy carve-out, not a permission.
+            'performance.view',
+            'performance.manage',
         ];
 
         foreach ($permissions as $permission) {
@@ -56,6 +63,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'attendance.view',
                 'finance.view', 'finance.discounts.approve',
                 'academics.view', 'academics.manage', 'academics.plan',
+                // The principal is the evaluator: creates, edits, finalizes.
+                'performance.manage',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
@@ -86,6 +95,9 @@ class RolesAndPermissionsSeeder extends Seeder
             ->syncPermissions([
                 'students.view', 'staff.view', 'classes.view', 'audit-logs.view',
                 'attendance.view', 'finance.view', 'academics.view',
+                // Read-only cross-module oversight, which is this role's whole
+                // purpose -- extends naturally to reading (not judging) ratings.
+                'performance.view',
             ]);
 
         // Parent-portal access is scoped via the student_guardian relation,
