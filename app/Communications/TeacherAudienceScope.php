@@ -24,10 +24,25 @@ use Illuminate\Support\Collection;
  *    dating of its own -- a row persists forever once created. "Current" is
  *    approximated by requiring the row's Class to belong to the CURRENT
  *    academic year, since classes are created fresh each year and a past
- *    year's class is naturally a different row.
+ *    year's class is naturally a different row. That approximation catches
+ *    cross-year staleness but NOT a mid-year handover: `Classes\Show::
+ *    removeTeacher()` hard-deletes the outgoing homeroom row, but nothing
+ *    forces that call to happen before or atomically with `assignTeacher()`
+ *    creating the new one, and no unique constraint stops two Staff holding
+ *    'homeroom' on the same Class at once. If an admin assigns a new
+ *    homeroom teacher without first removing the old row, BOTH remain
+ *    "current" by this scope's own logic, and the outgoing teacher keeps
+ *    full Communication authority for that class until someone notices and
+ *    deletes the stale row. This is a genuine, confirmed Foundation
+ *    limitation -- not fixed here, since class_teacher's shape is out of
+ *    scope for this closeout. See PROJECT_STATUS.md's Known Limitations.
  *  - `class_subject` (subject-level teaching) IS effective-dated
  *    (`ClassSubject::active()`); a closed assignment grants no authority,
- *    matching TeachingModulePolicy/AssessmentPolicy's established rule.
+ *    matching TeachingModulePolicy/AssessmentPolicy's established rule. This
+ *    path has NO equivalent stale-row risk: `Classes\Show::assignSubject()`
+ *    always closes the current assignment (`ended_on = today()`) inside the
+ *    same transaction that opens the new one -- close-and-create is
+ *    structurally enforced, not merely conventional.
  *
  * These two tables were built in different phases and are never kept in
  * sync with each other -- a teacher can appear in one and not the other for

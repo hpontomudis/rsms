@@ -181,6 +181,40 @@ class CommunicationAudienceTest extends TestCase
         $this->assertSame($class->id, $rule->school_class_id);
     }
 
+    /**
+     * Documents a real, confirmed gap rather than papering over it: unlike
+     * ClassSubject (where Classes\Show::assignSubject() closes the outgoing
+     * assignment atomically), ClassTeacher's handover is two independent
+     * admin actions (removeTeacher() then assignTeacher()). If the first is
+     * skipped, the outgoing homeroom teacher's row is never removed and
+     * TeacherAudienceScope has no way to tell it apart from the new one --
+     * both are "current" by its own (necessarily approximate) definition.
+     * This test is not a bug report to fix in this closeout; it exists so a
+     * future change to class_teacher's shape has to consciously update this
+     * assertion rather than silently making the limitation disappear or worse.
+     */
+    public function test_a_stale_unremoved_homeroom_row_retains_authority_after_an_incomplete_handover(): void
+    {
+        $outgoing = $this->teacherStaff('Sarah');
+        $incoming = $this->teacherStaff('Eka');
+        $class = $this->class('Year 5', 'Year 5A');
+        $this->assignHomeroom($class, $outgoing);
+
+        // The handover assigns the new homeroom teacher but -- realistically,
+        // by omission -- never calls removeTeacher() on the outgoing one.
+        $this->assignHomeroom($class, $incoming);
+
+        $outgoingTeacherUser = $outgoing->user->fresh();
+        $communication = $this->draft($outgoingTeacherUser);
+
+        // Confirmed gap: the outgoing teacher can still target this class.
+        $rule = $this->communications()->addAudienceRule($communication, $outgoingTeacherUser, [
+            'rule_type' => 'school_class_students', 'school_class_id' => $class->id,
+        ]);
+
+        $this->assertSame($class->id, $rule->school_class_id);
+    }
+
     public function test_teacher_may_target_a_teaching_group_they_actively_teach(): void
     {
         $assignment = $this->groupAssignmentFor('Green', 'Eng', 'Sarah');

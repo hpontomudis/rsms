@@ -196,6 +196,94 @@ class CommunicationMaterializationTest extends TestCase
         $this->assertSame(1, $published->recipients()->where('guardian_id', $guardian->id)->count());
     }
 
+    /**
+     * Regression pin for the bug browser verification caught:
+     * AudienceResolver::everyone() concatenated raw Student models instead of
+     * AudienceCandidate objects, throwing a TypeError the moment the "everyone"
+     * rule actually had a Student to include. Every EARLIER "everyone" test in
+     * this suite used all_staff-only or a Staff-only population, so an empty
+     * Student collection meant the buggy concat() never received a mismatched
+     * type and every one of those tests passed against the broken code. This
+     * test exists specifically because it does NOT make that mistake: it
+     * mixes Staff, Guardian and Student in one population, some reachable via
+     * a linked User and some not, exactly the shape that made the bug visible
+     * in the browser.
+     */
+    public function test_everyone_resolves_a_mixed_population_correctly_and_notifies_only_reachable_recipients(): void
+    {
+        $principal = $this->principalUser();
+
+        // Two Staff, both User-linked via teacherStaff()'s own fixture.
+        $sarah = $this->teacherStaff('Sarah');
+        $this->teacherStaff('Budi');
+        // A third Staff with no login at all.
+        \App\Models\Staff::create([
+            'staff_number' => 'S-NOLOGIN', 'first_name' => 'NoLogin', 'last_name' => 'Staff',
+            'position_id' => \App\Models\Position::firstOrFail()->id, 'phone' => '08',
+            'hire_date' => '2020-01-01', 'status' => 'active',
+        ]);
+
+        // Two active Students: one with a login, one without.
+        $reachableStudentUser = \App\Models\User::factory()->create();
+        $studentWithLogin = $this->studentNamed('Erik', 'Wijaya', 'STU-1');
+        $studentWithLogin->update(['user_id' => $reachableStudentUser->id]);
+        $studentWithoutLogin = $this->studentNamed('Evelyn', 'Wijaya', 'STU-2');
+
+        // Two Guardians: one with a login, one without.
+        $reachableGuardianUser = \App\Models\User::factory()->create();
+        $guardianWithLogin = $this->guardianNamed('Rudi', 'Wijaya', '0812-0001', $reachableGuardianUser->id);
+        $guardianWithoutLogin = $this->guardianNamed('Sri', 'Wijaya', '0812-0002');
+        $this->linkGuardian($studentWithLogin, $guardianWithLogin);
+        $this->linkGuardian($studentWithoutLogin, $guardianWithoutLogin);
+
+        $communication = $this->draft($principal);
+        $this->communications()->addAudienceRule($communication, $principal, ['rule_type' => 'everyone']);
+
+        // The bug threw here, inside previewAudience(), before publish was
+        // ever reached -- assert the preview itself succeeds and is correct.
+        $preview = $this->communications()->previewAudience($communication->fresh());
+
+        $this->assertSame(7, $preview['resolved']); // 3 staff + 2 students + 2 guardians
+        $this->assertSame(['staff' => 3, 'student' => 2, 'guardian' => 2], $preview['byType']);
+        $this->assertSame(4, $preview['reachable']); // sarah, budi, studentWithLogin, guardianWithLogin
+        $this->assertSame(3, $preview['unreachable']); // no-login staff, no-login student, no-login guardian
+
+        $published = $this->communications()->publish($communication->fresh(), $principal);
+
+        $this->assertSame('published', $published->status);
+        $this->assertSame(7, $published->recipients()->count());
+
+        // Identities materialized correctly, not merged or mistyped.
+        $this->assertSame(1, $published->recipients()->where('staff_id', $sarah->id)->count());
+        $this->assertSame(1, $published->recipients()->where('student_id', $studentWithLogin->id)->count());
+        $this->assertSame(1, $published->recipients()->where('student_id', $studentWithoutLogin->id)->count());
+        $this->assertSame(1, $published->recipients()->where('guardian_id', $guardianWithLogin->id)->count());
+        $this->assertSame(1, $published->recipients()->where('guardian_id', $guardianWithoutLogin->id)->count());
+
+        $reachableCount = $published->recipients()->whereNotNull('resolved_user_id')->count();
+        $this->assertSame(4, $reachableCount); // sarah, budi, studentWithLogin, guardianWithLogin
+
+        // Notifications created ONLY for reachable recipients -- never one per
+        // canonical recipient, and never for a recipient with no resolved
+        // login. `data` is a plain text column (Laravel's own standard
+        // notifications shape), so filter by decoded content in PHP rather
+        // than a JSON-path WHERE -- Postgres' `->>` operator refuses a text
+        // column outright, even though the same query is silently fine on
+        // SQLite's dynamic typing. A prior version of this test used
+        // `where('data->communication_id', ...)` and passed here on SQLite
+        // while it would have thrown on Postgres.
+        $notifiedUserIds = $published->recipients()->whereNotNull('resolved_user_id')->pluck('resolved_user_id');
+        $notificationsForThisCommunication = \Illuminate\Notifications\DatabaseNotification::where('notifiable_type', \App\Models\User::class)
+            ->whereIn('notifiable_id', $notifiedUserIds)
+            ->get()
+            ->filter(fn ($n) => ($n->data['communication_id'] ?? null) === $published->id);
+
+        foreach ($notifiedUserIds as $userId) {
+            $this->assertSame(1, $notificationsForThisCommunication->where('notifiable_id', $userId)->count());
+        }
+        $this->assertSame($reachableCount, $notificationsForThisCommunication->count());
+    }
+
     private function draft($actor)
     {
         return $this->communications()->createDraft($actor, [
