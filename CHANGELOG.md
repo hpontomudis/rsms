@@ -4,6 +4,54 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-16 - Phase V9A-3: Daily Journal Reflection Assistant
+
+The rule this feature exists to enforce: AI MAY HELP THE TEACHER REFLECT. AI MUST NOT INVENT WHAT HAPPENED IN THE CLASSROOM. Reuses V9A-1's infrastructure entirely unchanged (`AiProvider`, `AiGenerationService`, `ai_generations`, `ai.use`, rate limits) — no new AI table, no second infrastructure pattern.
+
+### The first structured-output assistant in this codebase
+`DailyJournalSuggestion` is a `final readonly` DTO with exactly two nullable fields, `reflection` and `followUp` — structurally incapable of representing `journal_date`, any identity column, or any objective/assessment/module link. `DailyJournalAssistant` prompts for a strict two-key JSON object and parses it with `json_decode(..., flags: JSON_THROW_ON_ERROR)`, never a regex over prose; a missing, `null`, empty, or wrong-typed field is dropped rather than coerced or defaulted.
+
+### Provider-success and assistant-usable are two different questions, kept as two different types
+`ai_generations.status` (via the unmodified `AiGenerationResult`) still means only "did the provider respond" — unchanged, no new column. `DailyJournalAssistantResult::status` answers a different question, "was the response interpretable," and can legitimately read `'unusable'` even when the underlying log row reads `'success'` (tokens genuinely spent, provider genuinely responded, but the JSON didn't parse or neither field was usable). Interpretation lives entirely in the assistant.
+
+### Scope: reflection and follow-up only, never actual_activity
+`actual_activity` is the factual record of what happened — the same trust class as a Communication's *content*, not its tone — and was deliberately excluded from AI rewriting in this phase. `reflection`/`follow_up` are the teacher's own interpretive/prospective judgment, where a suggested rewrite is legibly still "a draft of the teacher's own thinking."
+
+### The finalized-state firewall is stricter than the underlying policy, on purpose
+`DailyJournalPolicy::update()` genuinely permits a manager holding `academics.manage` to `update()` a **finalized** journal — its correction mechanism. `DailyJournalAssistant::authorize()` refuses AI assistance there regardless, via an explicit `$journal->isDraft()` re-check that is load-bearing (unlike Communication's equivalent check, redundant with a policy that already forbids editing a non-draft Communication). Pinned directly: `test_finalized_journal_refuses_ai_even_for_a_manager_who_could_manually_correct_it` first proves the policy *would* allow the manual update, then proves the assistant refuses anyway.
+
+### Data minimization, verified against real linked records
+Context sent to the provider: subject name, roster name (e.g. "Year 5A"), the journal's own `topic`, any already-linked curriculum objective titles, and existing `reflection`/`follow_up` text (so "improve this" rewrites are possible) — plus the teacher's own transient notes. Never `journal_date`, `meeting_number`, `actual_lesson_periods`, conductor identity, linked Teaching Module or Semester Programme detail, linked Assessment identity, attendance, or any student/guardian name. `DailyJournalContextBuilder` never queries a `Student` row at all — proven directly against a journal with a real enrolled/named student, a real guardian, a real linked Assessment, and a real linked Teaching Module, none of which appear in the constructed request.
+
+### Authorization, reused exactly, with no Journal-specific AI exception
+`ai.use` + `DailyJournalPolicy::update()` (the same gate a manual edit requires) + the explicit `isDraft()` re-check above. Checked empirically against the real seeded role grants, not assumed: `principal` holds `ai.use` but not `academics.record`, so `update()` refuses it on any draft journal, backfill or not; `admin_staff` holds `academics.record` + `academics.manage` (genuine backfill authority) but not `ai.use`. In practice, no currently-seeded role can invoke AI on a backfilled draft journal today — a pre-existing consequence of the permission grants, not a new restriction, and per the implementation approval's explicit instruction, no Journal-specific role exception was added to work around it.
+
+### Apply is per-field, a first for this codebase
+`JournalShow` exposes `applyReflection()`, `applyFollowUp()`, and `applyBoth()`, each copying only the named suggested field(s) into the still-unsaved `$record` array; `save()` → `DailyJournalService::update()` remains the only canonical write path, completely unaware AI was involved. `accepted_at` is set by any Apply action and means only "at least one suggested field from this generation was explicitly applied to unsaved form state" — not that every field was used, not that the Journal was saved. No per-field acceptance tracking, no new schema.
+
+### Language
+`id`/`en` only, no bilingual mode — a Journal reflection has exactly one reader (the teacher, or a correcting manager), unlike a Communication's mixed-language audience.
+
+### Added
+- `App\Ai`: `DailyJournalSuggestion`, `DailyJournalAssistantResult`, `DailyJournalContext`, `DailyJournalContextBuilder`, `DailyJournalAssistant`.
+- `config/ai.php`: `assistants.daily_journal_reflection` override (temperature 0.3, max output tokens 500 — lower than the default, since this assistant returns strict JSON and benefits from less creative variance).
+- `JournalShow` (`app/Livewire/Teaching/JournalShow.php`): AI properties/methods (`toggleAiPanel`, `generateAiSuggestion`, `applyReflection`, `applyFollowUp`, `applyBoth`, `dismissAiSuggestion`) and a new "AI assistance" card in `journal-show.blade.php`, gated `isDraft() && canUseAi` — structurally absent on a finalized journal, matching Communication's `@if` pattern.
+
+### Deliberately excluded
+- `actual_activity` rewriting.
+- Assessment/Teaching Module identity or detail in the AI context, even when linked.
+- Cross-Journal analysis of any kind (monthly summaries, teacher comparison, trend detection, reflection-quality scoring, teacher ranking).
+- Any link from a Journal AI suggestion into Performance Evidence or a Performance Evaluation rating — V7A's evidence/rating firewall is untouched.
+- A permanent "AI-generated" label on the saved Journal.
+
+### Tests
+`DailyJournalAssistantTest` (22): authorization (own-active-assignment teacher allowed; unrelated teacher refused; `admin_staff` with full manual authority but no `ai.use` refused; `principal` with `ai.use` but refused by policy itself proven directly via `Gate::allows()`; a synthetic user whose grants genuinely satisfy backfill authority proven to work; the load-bearing finalized-manager refusal), data minimization against real linked Student/Guardian/Assessment/Teaching Module fixtures, prompt-injection delimiting with a structural date-firewall assertion, structured-response validation (both fields, either field alone with the other wrong-typed/missing, valid-JSON-neither-usable, malformed JSON), the generate/apply firewall (canonical row byte-unchanged, per-field Apply via `Livewire::test`, Dismiss leaves no `accepted_at`, Regenerate creates a new row), failure handling (timeout, empty response — both distinct from the interpretation-level `'unusable'` case), and unrecognised-language refusal. Suite: 889 to 911 passing.
+
+### Migration count
+Unchanged at 79 — `ai_generations` already generalizes across `use_case`; no new table was needed.
+
+---
+
 ## 2026-08-16 - Phase V9A: AI Infrastructure + Communication Draft Assistant
 
 The rule this phase exists to enforce: AI MAY ASSIST THE USER. AI MUST NOT BECOME THE SOURCE OF TRUTH. AI output is never an approved school record by itself — it is never persisted, never auto-saved, and every AI-touched save still goes through the exact same domain service a manual edit already uses.

@@ -106,6 +106,83 @@
         @endif
     </div>
 
+    @if ($canUseAi)
+        {{-- ---------------------------------------------- AI reflection assist --}}
+        <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-slate-700">AI assistance</h2>
+                @unless ($showAiPanel)
+                    <button type="button" wire:click="toggleAiPanel" class="text-xs font-medium text-brand-navy hover:underline">Help me reflect&hellip;</button>
+                @else
+                    <button type="button" wire:click="toggleAiPanel" class="text-xs text-slate-500 hover:underline">Close</button>
+                @endunless
+            </div>
+
+            @if ($showAiPanel)
+                <p class="mb-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    AI assistance sends your notes below (plus this journal's subject, class/group, topic and linked objectives) to an
+                    external AI provider to suggest a reflection and follow-up. Nothing is saved until you review the suggestion and
+                    click Apply, then Save yourself.
+                </p>
+
+                <div class="mb-3">
+                    <label class="mb-1 block text-xs font-medium text-slate-600">What happened, in general terms</label>
+                    <textarea wire:model="teacherNotesForAi" rows="2" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy" placeholder="e.g. Students understood the numerator but still confuse the denominator. Group cards worked well."></textarea>
+                    <p class="mt-1 text-xs text-slate-500">Describe what happened in general terms. Avoid student names or other sensitive personal information.</p>
+                </div>
+
+                <div class="mb-3 max-w-xs">
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Language</label>
+                    <select wire:model="ai_language" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @foreach ($aiLanguages as $language)
+                            <option value="{{ $language }}">{{ $language === 'id' ? 'Indonesian' : 'English' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <button type="button" wire:click="generateAiSuggestion" wire:loading.attr="disabled"
+                    class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light disabled:opacity-50">
+                    <span wire:loading.remove wire:target="generateAiSuggestion">Generate suggestion</span>
+                    <span wire:loading wire:target="generateAiSuggestion">Generating&hellip;</span>
+                </button>
+
+                @if ($aiError)
+                    <p class="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{{ $aiError }}</p>
+                @endif
+
+                @if ($aiReflection || $aiFollowUp)
+                    <div class="mt-4 space-y-3 rounded-lg bg-slate-50 p-3">
+                        <p class="text-xs font-medium text-slate-500">AI-generated suggestion &mdash; review for accuracy before applying.</p>
+
+                        @if ($aiReflection)
+                            <div>
+                                <p class="mb-1 text-xs font-medium text-slate-500">Reflection</p>
+                                <p class="whitespace-pre-line rounded-md bg-white p-3 text-sm text-slate-800 ring-1 ring-slate-200">{{ $aiReflection }}</p>
+                                <button type="button" wire:click="applyReflection" class="mt-1 text-xs font-medium text-brand-navy hover:underline">Apply Reflection</button>
+                            </div>
+                        @endif
+
+                        @if ($aiFollowUp)
+                            <div>
+                                <p class="mb-1 text-xs font-medium text-slate-500">Follow-up</p>
+                                <p class="whitespace-pre-line rounded-md bg-white p-3 text-sm text-slate-800 ring-1 ring-slate-200">{{ $aiFollowUp }}</p>
+                                <button type="button" wire:click="applyFollowUp" class="mt-1 text-xs font-medium text-brand-navy hover:underline">Apply Follow-up</button>
+                            </div>
+                        @endif
+
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            @if ($aiReflection && $aiFollowUp)
+                                <button type="button" wire:click="applyBoth" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Apply Both</button>
+                            @endif
+                            <button type="button" wire:click="generateAiSuggestion" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Regenerate</button>
+                            <button type="button" wire:click="dismissAiSuggestion" class="rounded-md px-4 py-2 text-sm text-slate-500 hover:bg-slate-100">Dismiss</button>
+                        </div>
+                    </div>
+                @endif
+            @endif
+        </div>
+    @endif
+
     {{-- Plan it came from --}}
     <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 class="mb-1 text-sm font-semibold text-slate-700">Planned from</h2>

@@ -48,6 +48,12 @@ return [
             'temperature' => (float) env('AI_COMMUNICATION_TEMPERATURE', 0.4),
             'max_output_tokens' => (int) env('AI_COMMUNICATION_MAX_OUTPUT_TOKENS', 600),
         ],
+        'daily_journal_reflection' => [
+            // Lower than the default: this assistant returns strict JSON and
+            // benefits from less creative variance, not more.
+            'temperature' => (float) env('AI_JOURNAL_TEMPERATURE', 0.3),
+            'max_output_tokens' => (int) env('AI_JOURNAL_MAX_OUTPUT_TOKENS', 500),
+        ],
     ],
 
 ];

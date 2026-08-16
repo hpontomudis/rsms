@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Teaching;
 
+use App\Ai\AiGenerationService;
+use App\Ai\DailyJournalAssistant;
 use App\Models\Assessment;
 use App\Models\Attendance;
 use App\Models\DailyJournal;
@@ -10,6 +12,7 @@ use App\Models\SemesterProgrammeItem;
 use App\Models\Staff;
 use App\Models\TeachingModule;
 use App\Services\DailyJournalService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -37,6 +40,20 @@ class JournalShow extends Component
     public string $semester_programme_item_id = '';
 
     public string $conducted_by_staff_id = '';
+
+    public bool $showAiPanel = false;
+
+    public string $ai_language = 'id';
+
+    public string $teacherNotesForAi = '';
+
+    public ?string $aiReflection = null;
+
+    public ?string $aiFollowUp = null;
+
+    public ?int $aiGenerationId = null;
+
+    public ?string $aiError = null;
 
     public function mount(DailyJournal $dailyJournal): void
     {
@@ -70,6 +87,115 @@ class JournalShow extends Component
         ));
 
         $this->dailyJournal->refresh();
+    }
+
+    // ------------------------------------------------------------------ AI
+    //
+    // Generate never touches $this->dailyJournal or calls any
+    // DailyJournalService method -- it only ever sets the transient aiReflection
+    // /aiFollowUp properties. Only applyReflection()/applyFollowUp()/applyBoth()
+    // copy text into the (still unsaved) $this->record array; save() above
+    // remains the only path that writes to the database, completely unaware
+    // AI was involved.
+
+    public function toggleAiPanel(): void
+    {
+        $this->authorize('update', $this->dailyJournal);
+        $this->showAiPanel = ! $this->showAiPanel;
+        $this->reset(['aiReflection', 'aiFollowUp', 'aiGenerationId', 'aiError']);
+    }
+
+    public function generateAiSuggestion(DailyJournalAssistant $assistant): void
+    {
+        $this->authorize('update', $this->dailyJournal);
+        $this->reset(['aiReflection', 'aiFollowUp', 'aiGenerationId', 'aiError']);
+
+        try {
+            $result = $assistant->suggest(
+                Auth::user(),
+                $this->dailyJournal,
+                $this->ai_language,
+                $this->teacherNotesForAi,
+            );
+        } catch (AuthorizationException) {
+            $this->aiError = 'AI assistance is not available for this journal entry.';
+
+            return;
+        }
+
+        if ($result->isUsable()) {
+            $this->aiReflection = $result->suggestion->reflection;
+            $this->aiFollowUp = $result->suggestion->followUp;
+            $this->aiGenerationId = $result->generationId;
+
+            return;
+        }
+
+        $this->aiError = match ($result->status) {
+            'rate_limited' => 'You have reached the AI assistance limit for now. You can continue editing manually.',
+            'unusable' => "AI assistance couldn't produce a usable suggestion this time. You can try again or continue editing manually.",
+            default => 'AI assistance is temporarily unavailable. You can continue editing manually.',
+        };
+    }
+
+    public function applyReflection(AiGenerationService $generations): void
+    {
+        $this->authorize('update', $this->dailyJournal);
+
+        if ($this->aiReflection === null) {
+            return;
+        }
+
+        $this->record['reflection'] = $this->aiReflection;
+        $this->markAiAccepted($generations);
+    }
+
+    public function applyFollowUp(AiGenerationService $generations): void
+    {
+        $this->authorize('update', $this->dailyJournal);
+
+        if ($this->aiFollowUp === null) {
+            return;
+        }
+
+        $this->record['follow_up'] = $this->aiFollowUp;
+        $this->markAiAccepted($generations);
+    }
+
+    public function applyBoth(AiGenerationService $generations): void
+    {
+        $this->authorize('update', $this->dailyJournal);
+
+        if ($this->aiReflection === null && $this->aiFollowUp === null) {
+            return;
+        }
+
+        if ($this->aiReflection !== null) {
+            $this->record['reflection'] = $this->aiReflection;
+        }
+
+        if ($this->aiFollowUp !== null) {
+            $this->record['follow_up'] = $this->aiFollowUp;
+        }
+
+        $this->markAiAccepted($generations);
+    }
+
+    public function dismissAiSuggestion(): void
+    {
+        $this->reset(['aiReflection', 'aiFollowUp', 'aiGenerationId', 'aiError']);
+    }
+
+    /**
+     * accepted_at means only that at least one suggested field from this
+     * generation was explicitly applied to unsaved form state -- not that
+     * every field was used, and not that the Journal itself was saved.
+     */
+    private function markAiAccepted(AiGenerationService $generations): void
+    {
+        if ($this->aiGenerationId !== null) {
+            $generations->markAccepted($this->aiGenerationId);
+        }
     }
 
     public function setConductor(DailyJournalService $journals): void
@@ -200,6 +326,11 @@ class JournalShow extends Component
                 : null,
             'canEdit' => $editable,
             'canFinalize' => Auth::user()->can('finalize', $journal),
+            // isDraft() is explicit here, not implied by $editable -- DailyJournalPolicy::update()
+            // legitimately allows a manager to edit a FINALIZED journal (correction), but AI
+            // assistance must never be offered there. See DailyJournalAssistant's docblock.
+            'canUseAi' => config('ai.enabled') && Auth::user()->can('ai.use') && $editable && $journal->isDraft(),
+            'aiLanguages' => DailyJournalAssistant::LANGUAGES,
         ]);
     }
 }
