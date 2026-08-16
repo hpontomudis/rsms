@@ -668,7 +668,7 @@ And one further split within recipients: **PUBLISHING != EXTERNAL DELIVERY.** Pu
 
 ## V9 — AI-Assisted Management
 
-Status: **Phase V9A complete** (V9A-1 AI infrastructure, V9A-2 Communication Draft Assistant, V9A-3 Daily Journal Reflection Assistant). The governing rule this phase exists to enforce: **AI MAY ASSIST THE USER. AI MUST NOT BECOME THE SOURCE OF TRUTH.** AI output is never an approved school record by itself.
+Status: **Phase V9A complete** (V9A-1 AI infrastructure, V9A-2 Communication Draft Assistant, V9A-3 Daily Journal Reflection Assistant, V9A-4 Teaching Module AI Planning Assistant). The governing rule this phase exists to enforce: **AI MAY ASSIST THE USER. AI MUST NOT BECOME THE SOURCE OF TRUTH.** AI output is never an approved school record by itself.
 
 **AI never writes to a canonical model, structurally, not by convention.** `CommunicationAssistant::suggest()` has no reference to `CommunicationService` and cannot call `update()`/`publish()`/`archive()` — its only return value is a plain string. Applying a suggestion copies that string into the Livewire component's own unsaved `$body` property; saving still goes through `CommunicationService::updateDraft()`, the exact same method a manual edit already uses, completely unaware AI was ever involved. Proven directly: `test_generate_does_not_alter_the_canonical_communication_row` asserts the Communication's full `toArray()` is byte-identical before and after a successful `suggest()` call.
 
@@ -722,6 +722,33 @@ The second user-facing AI feature, reusing V9A-1's infrastructure unchanged. Gov
 - Cross-Journal analysis of any kind — no monthly summary, no Journal comparison, no teacher-trend detection, no reflection-quality scoring, no teacher ranking.
 - Any link from a Journal AI suggestion into Performance Evidence or a Performance Evaluation rating — V7A's evidence/rating firewall is unaffected; an AI-suggested reflection is not, and cannot become, professional evidence by itself.
 - A permanent "AI-generated" label on the saved Journal — once applied, edited, and saved, the record is an ordinary teacher-owned Journal; `ai_generations` metadata is sufficient provenance.
+
+### V9A-4 — Teaching Module AI Planning Assistant
+
+The third user-facing AI feature, reusing V9A-1's infrastructure unchanged and V9A-3's structured-output pattern extended from two fields to five. Governing rule: **AI MAY HELP THE TEACHER DESIGN THE LESSON. AI MAY WRITE AROUND THE TP. AI MAY NOT SELECT, REPLACE, REMOVE, OR INVENT THE TP.**
+
+**Scope: exactly five fields — `planned_activity`, `teaching_strategy`, `resources`, `differentiation`, `planned_assessment` — never `title`/`topic`/`teacher_notes`.** `title`/`topic` stay short, teacher-authored anchors describing what's being planned, the same role Journal's `topic` plays; they ground the prompt but are never AI output. `teacher_notes` is `TeachingModule`'s one already-persisted, durable field that stays editable even once Ready — deliberately kept separate from the transient `teacherNotesForAi` AI-instruction input (see below), rather than repurposed as prompt state. `TeachingModuleSuggestion` is a `final readonly` DTO with exactly these five nullable fields — structurally incapable of representing a Learning Objective link, a Semester Programme link, or any curriculum/subject/roster/status identity.
+
+**A canonical Learning Objective (TP) link is required before Generate is enabled — the one load-bearing precondition beyond authorization.** Mirrors an invariant this project already enforces elsewhere: `TeachingModuleService::markReady()` itself refuses without ≥1 linked objective. Requiring the same before AI generation keeps AI availability consistent with an existing pedagogical-anchor rule rather than inventing a new one. Without it, the assistant would have no curriculum grounding and degrade into generic, curriculum-detached lesson-plan generation. Pinned directly: generation is refused with "Link at least one learning objective before using AI planning assistance," and a separate test proves the objective link count is unchanged by Generate — the AI cannot add, remove, or substitute one.
+
+**Draft-only firewall is load-bearing for a different reason than Daily Journal's.** `TeachingModulePolicy::update()` has no closed-assignment branch at all — unlike Daily Journal, `TeachingModuleService::create()` has no backfill parameter, and `update()` unconditionally requires the assignment to still be active, so there is no manager-backfill case to reconcile here. What *is* still load-bearing: `update()` legitimately returns `true` for a **Ready** module, to allow `teacher_notes` edits — but all five AI-suggested fields are exactly what `TeachingModuleService` freezes once ready. Without an explicit `isDraft()` re-check, Generate would be technically reachable on a Ready module and produce a suggestion the teacher could never legally apply to any of its five target fields. Pinned directly: a test first proves `update()` *would* allow editing a Ready module, then proves the assistant still refuses AI there.
+
+**Context allowlist:** subject name, roster name, an optional `proficiencyLabel` (canonical `teachingGroup->englishLevel->name`, e.g. "Green" — group-backed modules only, `null` for class-backed ones, no invented mapping between English Level and national Learning Phase), the module's own `title`/`topic`, linked objective texts, existing values of all five plan fields (enabling "improve this" grounding without a separate mode flag), the persisted `teacher_notes` (read-only), and the transient `teacherNotesForAi`. Never full CP/Learning Outcome text, adjacent objectives, ATP sequence, Prota, Prosem period/JP/week-label, Assessment identity, or any student/guardian data — `TeachingModuleContextBuilder` never queries a `Student` row, and `TeachingModule` has no relation to `Assessment` at all, making the planned-assessment firewall structurally free (there is no relation to abuse).
+
+**Provider-success vs assistant-usability, extended to five independently-valid fields.** Same `json_decode(..., JSON_THROW_ON_ERROR)` strict parsing as Journal — a missing/null/wrong-typed/empty field is dropped, not coerced. One or several usable fields is still a `success` (a partial five-field suggestion is exactly as usable as a full one); zero usable fields, or unparseable JSON, is `'unusable'` while `ai_generations.status` correctly stays `'success'` if the provider genuinely responded.
+
+**Apply is per-field across five fields plus Apply All.** `ModuleShow` exposes `applyPlannedActivity()`, `applyTeachingStrategy()`, `applyResources()`, `applyDifferentiation()`, `applyPlannedAssessment()`, and `applyAll()`, each copying only its own suggested field(s) into the unsaved `$plan` array; `savePlan()` → `TeachingModuleService::update()` remains the only write path. `accepted_at` is set by any Apply action and means only "at least one suggested field was applied to unsaved form state."
+
+**Role grants:** unchanged from V9A-1 — `ai.use` on `principal`/`teacher` only. Note the permission intersection genuinely differs from Daily Journal's: `principal` holds `academics.plan` (the permission `TeachingModulePolicy` checks) *and* `ai.use`, so — unlike the Journal case — a principal can use this assistant on any draft module whose assignment is still active, since the policy's `owns()` check auto-passes for non-teacher roles.
+
+**Not built in V9A-4, deliberately:**
+- `title`/`topic`/`teacher_notes` rewriting — see above.
+- Full CP/Learning Outcome text, adjacent-objective (ATP) context, Prota/Prosem context — TP text alone is the initial grounding; widening is a deliberate future decision, not an oversight.
+- A formal generation-mode enum (`generate`/`improve`/`simplify`/etc.) — existing plan-field content already signals generate-vs-improve; ad-hoc steering belongs in `teacherNotesForAi` as free text.
+- Any real `Assessment` creation, linking, scoring, or weighting from `planned_assessment` — it stays descriptive Draft text only, and the model has no relation to abuse.
+- Cross-Module analysis of any kind — no comparison, no "best practice" identification, no lesson-quality scoring.
+- Any link from a Module AI suggestion into Performance Evidence or a Performance Evaluation rating — V7A's firewall is unaffected.
+- A permanent "AI-generated" label on the saved Module.
 
 ---
 

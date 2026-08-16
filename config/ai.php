@@ -54,6 +54,12 @@ return [
             'temperature' => (float) env('AI_JOURNAL_TEMPERATURE', 0.3),
             'max_output_tokens' => (int) env('AI_JOURNAL_MAX_OUTPUT_TOKENS', 500),
         ],
+        'teaching_module_plan' => [
+            // Five fields rather than two, so a higher ceiling than the
+            // journal assistant -- still a planning aid, not an essay.
+            'temperature' => (float) env('AI_MODULE_TEMPERATURE', 0.3),
+            'max_output_tokens' => (int) env('AI_MODULE_MAX_OUTPUT_TOKENS', 1400),
+        ],
     ],
 
 ];

@@ -4,6 +4,52 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-16 - Phase V9A-4: Teaching Module AI Planning Assistant
+
+The rule this feature exists to enforce: AI MAY HELP THE TEACHER DESIGN THE LESSON. AI MAY WRITE AROUND THE TP. AI MAY NOT SELECT, REPLACE, REMOVE, OR INVENT THE TP. Reuses V9A-1's infrastructure entirely unchanged and extends V9A-3's structured-output pattern from two fields to five — no new AI infrastructure pattern, no migration.
+
+### Scope: five fields, never title/topic/teacher_notes
+`TeachingModuleSuggestion` — `plannedActivity`, `teachingStrategy`, `resources`, `differentiation`, `plannedAssessment`, all nullable, nothing else. `title`/`topic` stay short, teacher-authored anchors (never AI output, the same role Journal's `topic` plays); `teacher_notes` is the module's one already-persisted, durable field and is deliberately kept separate from a new transient `teacherNotesForAi` input rather than repurposed as AI prompt state — see below.
+
+### A canonical Learning Objective (TP) link is required before Generate is enabled
+Mirrors an invariant this project already enforces: `TeachingModuleService::markReady()` itself refuses without ≥1 linked objective. Requiring the same before AI generation keeps AI availability consistent with an existing pedagogical-anchor rule rather than inventing a new one — without it, the assistant would have no curriculum grounding at all. Refused with: *"Link at least one learning objective before using AI planning assistance."*
+
+### Draft-only firewall, load-bearing for a different reason than Daily Journal's
+`TeachingModulePolicy::update()` has **no closed-assignment branch at all** — unlike Daily Journal, `TeachingModuleService::create()` has no backfill parameter, and `update()` unconditionally requires the assignment to still be active, so there is no manager-backfill case here. What *is* still load-bearing: `update()` legitimately returns `true` for a **Ready** module (to allow `teacher_notes` edits) — but all five AI-suggested fields are exactly what `TeachingModuleService` freezes once ready. `TeachingModuleAssistant::authorize()` re-checks `isDraft()` explicitly regardless, so Generate never dangles as a dead-end interaction on a module whose plan fields it could never actually change.
+
+### Context allowlist, including a new canonical proficiency signal
+Subject name, roster name, an optional canonical `proficiencyLabel` (`teachingGroup->englishLevel->name`, e.g. "Green" — teaching-group-backed modules only, `null` for class-backed ones, no invented mapping to national Learning Phase), the module's own `title`/`topic`, linked objective texts, existing values of all five plan fields (enabling "improve this" without a mode flag), the persisted `teacher_notes` read-only, and the transient `teacherNotesForAi`. Never full CP/Learning Outcome text, adjacent objectives, ATP sequence, Prota, Prosem period/JP/week-label, or any student/guardian data. `TeachingModuleContextBuilder` never queries a `Student` row, and since `TeachingModule` has no relation to `Assessment` at all, the planned-assessment firewall is structurally free — there is no relation to abuse.
+
+### Provider-success vs assistant-usability, extended to five independently-valid fields
+Same pattern as V9A-3: `json_decode(..., JSON_THROW_ON_ERROR)` strict parsing, never regex over prose; a missing/null/wrong-typed/empty field is dropped, not coerced. One or several usable fields is still a `success`; zero usable fields, or unparseable JSON, is `'unusable'` while `ai_generations.status` correctly stays `'success'` if the provider genuinely responded.
+
+### Apply, extended to five independently-applicable fields plus Apply All
+`ModuleShow` exposes `applyPlannedActivity()`, `applyTeachingStrategy()`, `applyResources()`, `applyDifferentiation()`, `applyPlannedAssessment()`, and `applyAll()`, each copying only its own suggested field(s) into the unsaved `$plan` array; `savePlan()` → `TeachingModuleService::update()` remains the only write path. `accepted_at` is set by any Apply action and means only "at least one suggested field from this generation was applied to unsaved form state."
+
+### A genuinely different role-permission intersection than Daily Journal's
+Checked empirically, not assumed: `principal` holds both `academics.plan` (the permission `TeachingModulePolicy` checks) and `ai.use`, so — unlike the Journal case, where no role held the full combination needed for backfill — a principal genuinely can use this assistant on any active-assignment draft module, since the policy's `owns()` check auto-passes for non-teacher roles. No special-casing was added or needed; the correct behavior falls out of the existing grants.
+
+### Added
+- `App\Ai`: `TeachingModuleSuggestion`, `TeachingModuleAssistantResult`, `TeachingModuleContext`, `TeachingModuleContextBuilder`, `TeachingModuleAssistant`.
+- `config/ai.php`: `assistants.teaching_module_plan` override (temperature 0.3, max output tokens 1400 — a higher ceiling than Journal's 500, since five fields need more room, with the system prompt explicitly requesting concise, 2-4-sentence-per-field planning text rather than a full lesson-plan document).
+- `ModuleShow` (`app/Livewire/Teaching/ModuleShow.php`): AI properties/methods and a new "AI assistance" card in `module-show.blade.php`, gated `isDraft() && canUseAi` — structurally absent on Ready/Archived, matching the established `@if` pattern. A non-empty target field's Apply button carries a small "Applying will replace your current text" hint — no automatic merge, no diff engine.
+
+### Deliberately excluded
+- `title`/`topic`/`teacher_notes` rewriting.
+- Full CP/Learning Outcome text, adjacent-objective (ATP) context, Prota/Prosem context — TP text alone is the initial grounding.
+- A formal generation-mode enum — existing plan-field content plus `teacherNotesForAi` free text already provide enough steering signal.
+- Any real `Assessment` creation, linking, scoring, or weighting from `planned_assessment` — descriptive Draft text only.
+- Cross-Module analysis, and any link from a Module AI suggestion into Performance Evidence or a Performance Evaluation rating.
+- A permanent "AI-generated" label on the saved Module.
+
+### Tests
+`TeachingModuleAssistantTest` (28): authorization (own-active-assignment teacher allowed; unrelated teacher refused; `admin_staff` with full manual authority but no `ai.use` refused; a teacher's own assignment closing revokes access via the policy itself, proven via `Gate::allows()` before and after; the load-bearing Ready-module refusal, proven the same way; Archived refused), the ≥1-objective gate (refused without one, allowed with one, link count unchanged through Generate), data minimization against a module with real linked Student/Guardian/Assessment fixtures, a teaching-group-backed module's proficiency label present while a class-backed module's is absent, structured-response validation (all five valid, some valid/some wrong-typed, zero-usable, malformed JSON), the generate/apply firewall (byte-identical row and unchanged objective-link count, five independent per-field Apply tests via `Livewire::test`, Apply All, Dismiss leaves no `accepted_at`, Regenerate creates a new row), prompt injection (an attempt to "use a different curriculum objective" stays delimited, objective link and text unchanged), and failure handling (timeout, empty response). Suite: 911 to 939 passing.
+
+### Migration count
+Unchanged at 79 — `ai_generations` already generalizes across `use_case`.
+
+---
+
 ## 2026-08-16 - Phase V9A-3: Daily Journal Reflection Assistant
 
 The rule this feature exists to enforce: AI MAY HELP THE TEACHER REFLECT. AI MUST NOT INVENT WHAT HAPPENED IN THE CLASSROOM. Reuses V9A-1's infrastructure entirely unchanged (`AiProvider`, `AiGenerationService`, `ai_generations`, `ai.use`, rate limits) — no new AI table, no second infrastructure pattern.
