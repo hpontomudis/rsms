@@ -60,6 +60,13 @@ return [
             'temperature' => (float) env('AI_MODULE_TEMPERATURE', 0.3),
             'max_output_tokens' => (int) env('AI_MODULE_MAX_OUTPUT_TOKENS', 1400),
         ],
+        'management_insight_summary' => [
+            // Narrating a small list of pre-computed facts -- low
+            // creative variance is a virtue, and the response is short
+            // (one paragraph + a bulleted list of one-sentence items).
+            'temperature' => (float) env('AI_INSIGHT_TEMPERATURE', 0.2),
+            'max_output_tokens' => (int) env('AI_INSIGHT_MAX_OUTPUT_TOKENS', 600),
+        ],
     ],
 
 ];

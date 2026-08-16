@@ -78,6 +78,13 @@
                 Route::has('communications.inbox') ? $navItem('communications.inbox', 'My Inbox', 'subjects') : null,
             ])),
         ],
+        [
+            'label' => 'Management',
+            'items' => array_values(array_filter([
+                Route::has('management.insights') && $user->can('management-insights.view')
+                    ? $navItem('management.insights', 'Insights', 'dashboard') : null,
+            ])),
+        ],
     ];
 @endphp
 

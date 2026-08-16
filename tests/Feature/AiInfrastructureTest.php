@@ -134,7 +134,12 @@ class AiInfrastructureTest extends TestCase
     {
         $this->assertTrue(Role::where('name', 'principal')->first()->hasPermissionTo('ai.use'));
         $this->assertTrue(Role::where('name', 'teacher')->first()->hasPermissionTo('ai.use'));
-        $this->assertFalse(Role::where('name', 'management')->first()->hasPermissionTo('ai.use'));
+        // management was granted ai.use in V9A-5, specifically to enable the
+        // optional AI narrative of the deterministic Management Insights
+        // dashboard -- the first AI use case genuinely aimed at this role.
+        // The grant is meaningful only in combination with management-insights.view,
+        // since management holds no write-side gates anywhere in the system.
+        $this->assertTrue(Role::where('name', 'management')->first()->hasPermissionTo('ai.use'));
         $this->assertFalse(Role::where('name', 'admin_staff')->first()->hasPermissionTo('ai.use'));
         $this->assertTrue(Role::where('name', 'super_admin')->first()->hasPermissionTo('ai.use'));
     }

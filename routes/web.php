@@ -20,6 +20,7 @@ use App\Livewire\FeeStructures;
 use App\Livewire\Guardians;
 use App\Livewire\Invoices;
 use App\Livewire\LearningPhases;
+use App\Livewire\ManagementInsights;
 use App\Livewire\Performance;
 use App\Livewire\Planning;
 use App\Livewire\Staff;
@@ -184,6 +185,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', Communications\Create::class)->name('create');
         Route::get('/inbox', Communications\Inbox::class)->name('inbox');
         Route::get('/{communication}', Communications\Show::class)->name('show');
+    });
+
+    Route::prefix('management')->name('management.')->group(function () {
+        Route::get('/insights', ManagementInsights\Index::class)->name('insights');
     });
 
     Route::prefix('assessments')->name('assessments.')->group(function () {

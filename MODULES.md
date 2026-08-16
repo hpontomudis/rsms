@@ -668,7 +668,7 @@ And one further split within recipients: **PUBLISHING != EXTERNAL DELIVERY.** Pu
 
 ## V9 — AI-Assisted Management
 
-Status: **Phase V9A complete** (V9A-1 AI infrastructure, V9A-2 Communication Draft Assistant, V9A-3 Daily Journal Reflection Assistant, V9A-4 Teaching Module AI Planning Assistant). The governing rule this phase exists to enforce: **AI MAY ASSIST THE USER. AI MUST NOT BECOME THE SOURCE OF TRUTH.** AI output is never an approved school record by itself.
+Status: **Phase V9A complete** (V9A-1 AI infrastructure, V9A-2 Communication Draft Assistant, V9A-3 Daily Journal Reflection Assistant, V9A-4 Teaching Module AI Planning Assistant, V9A-5 Deterministic Management Insights + AI Narrative). The governing rule this phase exists to enforce: **AI MAY ASSIST THE USER. AI MUST NOT BECOME THE SOURCE OF TRUTH.** AI output is never an approved school record by itself.
 
 **AI never writes to a canonical model, structurally, not by convention.** `CommunicationAssistant::suggest()` has no reference to `CommunicationService` and cannot call `update()`/`publish()`/`archive()` — its only return value is a plain string. Applying a suggestion copies that string into the Livewire component's own unsaved `$body` property; saving still goes through `CommunicationService::updateDraft()`, the exact same method a manual edit already uses, completely unaware AI was ever involved. Proven directly: `test_generate_does_not_alter_the_canonical_communication_row` asserts the Communication's full `toArray()` is byte-identical before and after a successful `suggest()` call.
 
@@ -749,6 +749,41 @@ The third user-facing AI feature, reusing V9A-1's infrastructure unchanged and V
 - Cross-Module analysis of any kind — no comparison, no "best practice" identification, no lesson-quality scoring.
 - Any link from a Module AI suggestion into Performance Evidence or a Performance Evaluation rating — V7A's firewall is unaffected.
 - A permanent "AI-generated" label on the saved Module.
+
+### V9A-5 — Deterministic Management Insights + AI Narrative
+
+The fourth user-facing AI feature, and the first one where AI never authors *any* fact — it only narrates already-computed, deterministic ones. Governing rule for this feature specifically: **DETERMINISTIC FACTS FIRST. AI NARRATIVE SECOND. AI MAY EXPLAIN VERIFIED RSMS FACTS. AI MAY NOT DISCOVER FACTS BY FREELY QUERYING THE DATABASE.**
+
+**Architecture: `ManagementInsightRegistry` → 7 explicit providers → `ManagementInsight` DTO → dashboard.** Read-side counterpart to `EvidenceRegistry`/`AudienceResolver`'s "explicit builders over generic engines" pattern, applied to reporting for the first time in this codebase. Each provider owns exactly one insight key, documents its own reliability/severity rule in its class docblock, and queries live — no snapshot table, no cache, no shared query engine, no user-authored formulas.
+
+**The v1 catalog: seven providers, deliberately narrow.** (A) Active `ClassSubject` assignments missing a Semester Programme for the selected period; (B) Draft `TeachingModule`s on active assignments; (C) Draft `DailyJournal` entries; (D) Draft `PerformanceEvaluation`s (administrative lifecycle status count *only* — never ratings, evidence, strengths, or development priorities); (E) Published `Communication`s with zero RSMS-reachable recipients (V8A's canonical materialization semantics, never described as "failed delivery" — V8A has no external delivery); (F) Active `Staff` with no `staff_category_id`; (G) Active Students (`students.status = 'active'` directly — deliberately NOT joined through `class_student`) without a Published `AcademicRecord` for a completed Academic Period.
+
+**Deliberately excluded from v1, and structurally so — the absence itself is asserted by tests.** No `class_teacher`-based provider (live incomplete-handover defect, `PROJECT_STATUS.md` Technical Debt — a stale row may validly read as "current"). No standalone `class_student`-chronology provider (no effective dating, no partial-unique guard against a student with two `active` rows). No Assessment-missing-results provider (its `scoreSheetStudents()` for class-backed assessments transitively depends on `class_student`; deferred until Foundation remediation). No Finance provider (excluded on sensitivity policy, not data reliability — financial amounts stay out of AI-narrative scope). A future insight whose key contains `class_teacher`/`homeroom`/`class_student`/`assessment_missing`/`missing_results`/`finance` will fail `test_no_class_teacher_or_class_student_or_assessment_missing_results_provider_exists()`.
+
+**`ManagementInsightScope` requires explicit `AcademicYear`/`AcademicPeriod`; providers MUST NOT call `AcademicYear::current()`.** Its underlying `is_current` boolean has no DB-level uniqueness guarantee, and its resolver uses an unguarded `->first()` — a latent variant of the same defect the codebase already documents for `SchoolClass::homeroomTeacher()`. The Livewire dashboard resolves the year/period once at the UI boundary; providers see only the resolved DTO. This is now documented as Foundation Technical Debt in its own right.
+
+**Three-state reliability, enforced structurally: `reliable` / `limited` / `unavailable`.** When `reliability = 'unavailable'`, the DTO's `count` MUST be `null` — enforced in `ManagementInsight`'s constructor (throws `InvalidArgumentException` if a non-null count is supplied with unavailable reliability). This is the first place in the codebase where "unknown ≠ zero" is guaranteed at the type layer rather than by convention — the same "structurally unrepresentable" discipline the prior four AI DTOs use for firewall properties, applied here to a data-honesty property. The AI system prompt additionally restates the rule in prose as belt-and-suspenders.
+
+**`ManagementNarrativeAssistant`: narrates the DTOs, never touches Eloquent.** No reference to `ManagementInsightService`, no reference to any provider, no reference to any domain model at all. Its only input is the AI-safe payload `ManagementNarrativeContextBuilder` produces — the strict six-field allowlist `key`, `category`, `title`, `description`, `count`, `reliability`. Every other DTO field (`severity`, `sourceType`, `sourceIds`, `actionRouteName`, `actionRouteParams`, `reliabilityNote`) is stripped and never reaches the model.
+
+**Structured JSON response with a Summary + Attention Points shape.** `ManagementNarrativeSuggestion` — `?string $summary`, `array $attentionPoints` (plain strings, no per-point severity/priority/ranking — prioritization stays deterministic, owned by each provider's `severity` rule). Same `json_decode(JSON_THROW_ON_ERROR)` strict parsing as V9A-3/V9A-4; wrong-typed points in the array are dropped (not coerced), matching the field-level validation discipline.
+
+**Authorization is double-gated the same way every prior V9A assistant already scopes access.** Dashboard requires `management-insights.view`; AI narrative additionally requires `ai.use`. A user holding `management-insights.view` but not `ai.use` gets the full deterministic dashboard with no narrative button. A user holding `ai.use` but not `management-insights.view` gets nothing at all — `ai.use` never grants Management Insights access on its own.
+
+**Role grants:** `principal` → `management-insights.view` (already held `ai.use`). `management` → `management-insights.view` AND `ai.use` — the one new AI-narrative-only grant for a role previously holding zero AI capability, deliberately chosen because Management Insights is exactly this role's read-only, oversight-oriented shape (V9A-5 architecture review §20). `teacher`/`admin_staff`/`finance_staff` → no `management-insights.view` (no global dashboard for these roles in v1).
+
+**`accepted_at` stays permanently `NULL` for `management_insight_summary`.** There is no Apply action for a narrative — nothing is copied into unsaved form state, nothing gets saved. Reusing `accepted_at` to mean "the summary was read" would drift from its established meaning ("at least one suggested field was applied to unsaved form state"). `AiGenerationService::markAccepted()` is simply never called for this use case, and the semantic difference is pinned by a test.
+
+**Empty-state protection.** Generate button is disabled entirely when every insight in scope has `count === 0` (or is unavailable) — no wasted tokens on "nothing to report" summaries.
+
+**Not built in V9A-5, deliberately:**
+- Any AI interpretation of Performance Evaluation content (ratings, evidence text, strengths, development priorities) — administrative status count is the ceiling for this feature.
+- Any individual student data reaching AI narrative — no student names, no scores, no risk prediction.
+- Any Finance data in AI narrative (amounts, balances, debt profiling).
+- Any Communication body content — aggregate counts only.
+- Text-to-SQL, RAG, vector search, agentic tool use, autonomous mutation.
+- Cross-teacher/cross-staff ranking or scoring.
+- Cross-period historical trend or snapshot persistence — insights are current operational observations, computed live per request.
 
 ---
 

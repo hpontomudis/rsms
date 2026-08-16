@@ -47,6 +47,11 @@ class RolesAndPermissionsSeeder extends Seeder
             // permission alone never authorises a school-wide audience.
             'communications.view',
             'communications.manage',
+            // Cross-cutting access to the aggregate Management Insights
+            // dashboard -- deliberately not tied to any single domain's
+            // *.view, since the aggregate view crosses several. See V9A-5
+            // architecture review §19.
+            'management-insights.view',
             // Global kill-switch, not a meaningful access boundary by
             // itself -- every AI feature still requires the SAME underlying
             // domain policy a manual edit would (CommunicationPolicy, etc).
@@ -79,6 +84,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'performance.manage',
                 // School-wide publishing authority -- any audience.
                 'communications.manage',
+                'management-insights.view',
                 'ai.use',
             ]);
 
@@ -119,6 +125,13 @@ class RolesAndPermissionsSeeder extends Seeder
                 'performance.view',
                 // Read-only here too -- management does not publish.
                 'communications.view',
+                // Management Insights is exactly this role's shape: read-only,
+                // aggregate, oversight-oriented. ai.use is granted here for
+                // the optional narrative summary of those insights -- V9A-5
+                // is the first genuine AI use case for this role, and the
+                // narrative is still gated on management-insights.view.
+                'management-insights.view',
+                'ai.use',
             ]);
 
         // Parent-portal access is scoped via the student_guardian relation,
