@@ -4,6 +4,49 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-16 - Foundation F1: AcademicYear Current-State Integrity
+
+First approved piece of a Foundation Integrity Pass (three areas reviewed — `AcademicYear`, `class_teacher`, `class_student` — only `AcademicYear` approved and implemented). Governing rule: CURRENT ACADEMIC YEAR MUST BE DETERMINISTIC. The database must prevent more than one current Academic Year; the application must provide one explicit, transactional way to change it; no silent `first()` guessing.
+
+### Preflight, before any constraint
+Dev database inspected first: exactly one `AcademicYear` row, `is_current = true`. No conflicting rows, no manual resolution needed.
+
+### `academic_years_current_unique`: a partial unique index on `(is_current) WHERE is_current = true`
+Portable — identical syntax on PostgreSQL and SQLite, the same technique already proven by `class_subject_active_unique` and `teaching_group_student_open_unique`, applied here to a single boolean column. Migration count: 79 → 80.
+
+### `AcademicYear::current()` is fail-loud, not `->first()`
+Zero current years still returns `null` — every existing caller already tolerated this. More than one current year (structurally impossible through any normal write path once the DB constraint exists) throws `LogicException` instead of silently picking one. No `currentOrFail()` companion added — no existing caller needs one.
+
+### `AcademicYearService::setCurrent()`: the one canonical write path
+One transaction: lock the current row(s) and the target row, close the previous current year via a per-model update (a bulk query update would bypass Eloquent events and silently skip the `Auditable` trail), open the target. Idempotent — calling it on the already-current year changes nothing and writes no audit entry. `AcademicYearSeeder` now calls it too, replacing its old non-transactional wipe-then-set two-step.
+
+### `AcademicYear` is now `Auditable`
+No duplicate entries between model and service — the service performs ordinary Eloquent `update()` calls; the trait's existing hooks do the actual writing, same shape as every other Auditable model.
+
+### Minimal admin UI on the existing Classes page, not a new module
+A "Change current Academic Year" panel added to `Classes\Index` — the closest existing Foundation surface, already displaying `currentAcademicYear`. Gated on `academic-years.manage`, an existing V1 permission seeded and granted to `admin_staff` from the start but never actually checked anywhere until now. No new permission created. Explicit warning copy: a switch changes default scope only, never a promotion, class rollover, enrollment transfer, or curriculum migration.
+
+### Caller review: no rewrites needed
+~20 existing callers of `AcademicYear::current()` classified (UI-default, business-critical, authorization, reporting, seeder/test) — none needed to change, since the fixed resolver's behavior for their actual cases (single year or null) is unchanged. `ManagementInsight` providers reconfirmed to never call `current()` internally, now pinned by a structural test scanning for the call outside comments.
+
+### Added
+- Migration `2026_08_16_000002_add_current_unique_index_to_academic_years_table` — `academic_years_current_unique` partial unique index.
+- `App\Services\AcademicYearService::setCurrent()`.
+- `AcademicYear::current()` fail-loud rewrite; `AcademicYear` gains the `Auditable` trait.
+- `App\Livewire\Classes\Index::switchCurrentAcademicYear()` + panel in `resources/views/livewire/classes/index.blade.php`, gated on `academic-years.manage`.
+- `tests/Feature/AcademicYearCurrentStateTest.php` (14 tests): DB rejects a second current row; resolver returns the single current year / null / fails loud on >1; `setCurrent()` leaves exactly one current, clears the previous, is idempotent, writes audit entries; seeder produces and re-produces exactly one current year; authorized switch succeeds, unauthorized is forbidden and changes nothing, switcher not rendered without the permission; switching does not modify Student/SchoolClass/enrollment data; no ManagementInsight class calls `AcademicYear::current()` internally.
+
+### Explicitly NOT done in F1
+`class_teacher` and `class_student` remediation (Foundation F2/F3) — reviewed in the same architecture pass, not approved, not started. `Student::currentClass()`'s unguarded `->first()` is a `class_student`-area concern, left untouched even though it happens to call `AcademicYear::current()`. No `AcademicPeriod` change — direct inspection found no analogous defect.
+
+### Tests
+987 passing, 2,206 assertions (from 973/2,176 baseline — 14 new tests, 30 new assertions).
+
+### Migration count
+79 → 80.
+
+---
+
 ## 2026-08-16 - Phase V9A-5: Deterministic Management Insights + AI Narrative
 
 The rule this feature exists to enforce: DETERMINISTIC FACTS FIRST. AI NARRATIVE SECOND. AI MAY EXPLAIN VERIFIED RSMS FACTS. AI MAY NOT DISCOVER FACTS BY FREELY QUERYING THE DATABASE. First AI feature in this codebase where the AI has no data-discovery role at all — seven deterministic providers compute every fact, and the AI narrative only paraphrases the already-computed insights it receives.

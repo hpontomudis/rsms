@@ -760,7 +760,7 @@ The fourth user-facing AI feature, and the first one where AI never authors *any
 
 **Deliberately excluded from v1, and structurally so — the absence itself is asserted by tests.** No `class_teacher`-based provider (live incomplete-handover defect, `PROJECT_STATUS.md` Technical Debt — a stale row may validly read as "current"). No standalone `class_student`-chronology provider (no effective dating, no partial-unique guard against a student with two `active` rows). No Assessment-missing-results provider (its `scoreSheetStudents()` for class-backed assessments transitively depends on `class_student`; deferred until Foundation remediation). No Finance provider (excluded on sensitivity policy, not data reliability — financial amounts stay out of AI-narrative scope). A future insight whose key contains `class_teacher`/`homeroom`/`class_student`/`assessment_missing`/`missing_results`/`finance` will fail `test_no_class_teacher_or_class_student_or_assessment_missing_results_provider_exists()`.
 
-**`ManagementInsightScope` requires explicit `AcademicYear`/`AcademicPeriod`; providers MUST NOT call `AcademicYear::current()`.** Its underlying `is_current` boolean has no DB-level uniqueness guarantee, and its resolver uses an unguarded `->first()` — a latent variant of the same defect the codebase already documents for `SchoolClass::homeroomTeacher()`. The Livewire dashboard resolves the year/period once at the UI boundary; providers see only the resolved DTO. This is now documented as Foundation Technical Debt in its own right.
+**`ManagementInsightScope` requires explicit `AcademicYear`/`AcademicPeriod`; providers MUST NOT call `AcademicYear::current()`.** At the time V9A-5 shipped, the underlying `is_current` boolean had no DB-level uniqueness guarantee and its resolver used an unguarded `->first()` — a latent variant of the same defect the codebase already documents for `SchoolClass::homeroomTeacher()`. Foundation F1 (below) has since closed that specific gap, but the rule here is unchanged and was never contingent on it: providers stay explicitly scoped regardless of how safe `current()` becomes, the same "explicit scope in services" discipline used everywhere else in this codebase. `test_no_management_insight_class_calls_academic_year_current_internally` (Foundation F1) now pins the absence structurally, the same way the provider-exclusion test already pins the missing `class_teacher`/`class_student` providers.
 
 **Three-state reliability, enforced structurally: `reliable` / `limited` / `unavailable`.** When `reliability = 'unavailable'`, the DTO's `count` MUST be `null` — enforced in `ManagementInsight`'s constructor (throws `InvalidArgumentException` if a non-null count is supplied with unavailable reliability). This is the first place in the codebase where "unknown ≠ zero" is guaranteed at the type layer rather than by convention — the same "structurally unrepresentable" discipline the prior four AI DTOs use for firewall properties, applied here to a data-honesty property. The AI system prompt additionally restates the rule in prose as belt-and-suspenders.
 
@@ -784,6 +784,32 @@ The fourth user-facing AI feature, and the first one where AI never authors *any
 - Text-to-SQL, RAG, vector search, agentic tool use, autonomous mutation.
 - Cross-teacher/cross-staff ranking or scoring.
 - Cross-period historical trend or snapshot persistence — insights are current operational observations, computed live per request.
+
+---
+
+## Foundation F1 — AcademicYear Current-State Integrity
+
+The first of a planned Foundation Integrity Pass (three areas reviewed: `AcademicYear`, `class_teacher`, `class_student` — only `AcademicYear` approved and implemented so far). Governing rule: **CURRENT ACADEMIC YEAR MUST BE DETERMINISTIC.** The database must prevent more than one current Academic Year; the application must provide one explicit, transactional way to change it; no silent `first()` guessing anywhere in the read path.
+
+**Preflight before the constraint, not after.** The dev database was inspected first: exactly one `AcademicYear` row, `is_current = true` — no conflicting rows to resolve, so the constraint could be added with no data migration.
+
+**DB invariant: `academic_years_current_unique`, a partial unique index on `(is_current) WHERE is_current = true`.** Portable, identical syntax on PostgreSQL and SQLite — the same technique already proven by `class_subject_active_unique` and `teaching_group_student_open_unique`, applied here to a single-column boolean rather than a composite key. Migration count: 79 → 80.
+
+**`AcademicYear::current()` is now fail-loud, not `->first()`.** Zero current years still returns `null` (every existing caller already tolerated this). More than one current year — structurally impossible through any normal write path once the DB constraint exists — throws `LogicException` rather than silently picking one. No `currentOrFail()` companion was added: every one of the ~20 existing callers already tolerates a null current year, so a throwing variant would have had no caller.
+
+**`AcademicYearService::setCurrent()` is the one canonical write path.** One transaction: lock the current row(s) and the target row, close whichever year (if any) was current via a per-model update (not a bulk query update — bulk updates bypass Eloquent events and would silently skip the `Auditable` trail), then open the target. Idempotent: calling it on the year that's already current changes nothing and writes no audit entry. `AcademicYearSeeder` calls it too, replacing its old wipe-then-set two-step (which briefly left every row not-current) with the same transition every other caller uses.
+
+**`AcademicYear` is now `Auditable`.** No duplicate audit entries between model and service — the service performs ordinary Eloquent `update()` calls and the trait's existing `boot` hooks do the actual writing, the same shape used by every other Auditable model in this codebase.
+
+**Minimal admin UI, not a new module.** A "Change current Academic Year" panel added to the existing `Classes\Index` page (the closest existing Foundation surface, already displaying `currentAcademicYear`) rather than a new `/academic-years` CRUD module. Gated on `academic-years.manage` — an existing Foundation permission that had been seeded and granted to `admin_staff` since V1 but never actually checked anywhere in the codebase until now. Explicit warning copy: changing the current year "changes the default scope used by parts of RSMS" and is explicitly NOT a promotion, class rollover, enrollment transfer, or curriculum migration.
+
+**Authorization: reused `academic-years.manage`, no new permission.** `admin_staff` (school administration, per its PRD role description) holds it; `teacher` does not. Confirmed structurally by two tests: an authorized switch succeeds, an unauthorized attempt is refused with 403 and leaves the database unchanged, and the switcher panel itself does not render for a user without the permission.
+
+**`AcademicPeriod` has no analogous defect and was left untouched.** No `is_current`-equivalent flag exists on the model; "current period" is already derived from dates or explicit selection everywhere it's used. Confirmed by direct inspection, not assumed from the AcademicYear review.
+
+**Caller review: no caller rewrites needed.** ~20 existing callers of `AcademicYear::current()` were classified (UI-default-only, business-critical, authorization, reporting, seeder/test) — none needed to change, since the fixed resolver's behavior is a strict improvement (still returns the single year or `null` exactly as before) and none of them needed to distinguish ">1 current" from a sensible default, a scenario now DB-impossible. `ManagementInsight` providers were reconfirmed to never call `current()` internally (see above), now pinned by a structural test rather than relying on code review alone.
+
+**`class_teacher` and `class_student` remediation are explicitly NOT part of F1.** Both remain exactly as documented in `PROJECT_STATUS.md` Technical Debt. `Student::currentClass()` still uses an un-guarded `->first()` — a `class_student`-area defect, not an `AcademicYear`-area one, and out of scope here even though it happens to call `AcademicYear::current()` along the way.
 
 ---
 
