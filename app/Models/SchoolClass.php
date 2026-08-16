@@ -50,13 +50,35 @@ class SchoolClass extends Model
     {
         return $this->belongsToMany(Staff::class, 'class_teacher', 'class_id', 'staff_id')
             ->using(ClassTeacher::class)
-            ->withPivot(['role'])
+            ->withPivot(['role', 'started_on', 'ended_on'])
             ->withTimestamps();
     }
 
+    /**
+     * The current homeroom teacher, or null. Deliberately CURRENT only, not
+     * point-in-time: no existing consumer needs a historical "who was
+     * homeroom teacher on date X" answer (`AcademicRecordService`'s
+     * homeroom resolution is documented as current-only too, matching
+     * `resolveClass()`'s same choice), so a `homeroomTeacherOn(date)`
+     * historical resolver was deliberately not built -- Foundation F2.
+     *
+     * More than one open homeroom row is a database-level impossibility
+     * once `class_teacher_homeroom_open_unique` exists, but this still
+     * fails loud rather than guessing, the same defense-in-depth already
+     * used by `AcademicYear::current()`.
+     */
     public function homeroomTeacher(): ?Staff
     {
-        return $this->teachers()->wherePivot('role', 'homeroom')->first();
+        $current = $this->teachers()->wherePivot('role', 'homeroom')->wherePivotNull('ended_on')->get();
+
+        return match ($current->count()) {
+            0 => null,
+            1 => $current->first(),
+            default => throw new \LogicException(
+                "Class #{$this->id} has more than one open homeroom row. This should be impossible once ".
+                'class_teacher_homeroom_open_unique is in place -- resolve the conflicting rows directly.'
+            ),
+        };
     }
 
     public function attendanceSessions(): HasMany
@@ -70,10 +92,17 @@ class SchoolClass extends Model
     }
 
     /**
-     * Restrict a query to classes the given staff member teaches.
+     * Restrict a query to classes the given staff member currently teaches
+     * (any open class_teacher row -- homeroom, assistant, or a legacy-only
+     * open subject_teacher row). A closed/historical row no longer counts,
+     * matching Foundation F2's "current authorization ignores closed rows"
+     * rule -- this scope feeds UI filtering (My Classes, attendance class
+     * picker), so a stale row here would offer a class the corresponding
+     * policy check (`AttendancePolicy::hasClassAccess()`) then correctly
+     * refuses.
      */
     public function scopeTaughtBy(Builder $query, int $staffId): Builder
     {
-        return $query->whereHas('teachers', fn ($q) => $q->where('staff_id', $staffId));
+        return $query->whereHas('teachers', fn ($q) => $q->where('staff_id', $staffId)->whereNull('class_teacher.ended_on'));
     }
 }

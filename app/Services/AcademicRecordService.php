@@ -217,12 +217,19 @@ class AcademicRecordService
     }
 
     /**
-     * The homeroom teacher's name, or null.
+     * The CURRENT homeroom teacher's name, or null -- resolved the moment
+     * publish() runs, same as resolveClass() above; never a specific
+     * historical date, and never rewritten once snapshotted (Foundation F2:
+     * a later handover does not alter an already-published record, proven
+     * by `test_a_homeroom_change_after_publication_does_not_alter_the_record`).
      *
-     * Two homeroom teachers on one class is a configuration problem, not
-     * something to resolve with first(): the wrong name would be printed on a
-     * document and signed. Zero is fine -- the document prints an unnamed
-     * signing line rather than inventing one.
+     * Only an OPEN class_teacher row counts. Two homeroom teachers on one
+     * class is a configuration problem, not something to resolve with
+     * first(): the wrong name would be printed on a document and signed.
+     * Zero is fine -- the document prints an unnamed signing line rather
+     * than inventing one. `class_teacher_homeroom_open_unique` makes the
+     * ">1 open" case a database-level impossibility going forward, but this
+     * still fails loud rather than trusting that.
      */
     public function resolveHomeroomTeacherName(?SchoolClass $class): ?string
     {
@@ -233,6 +240,7 @@ class AcademicRecordService
         $staffIds = DB::table('class_teacher')
             ->where('class_id', $class->id)
             ->where('role', 'homeroom')
+            ->whereNull('ended_on')
             ->pluck('staff_id');
 
         if ($staffIds->count() > 1) {

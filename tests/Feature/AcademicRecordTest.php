@@ -284,9 +284,22 @@ class AcademicRecordTest extends TestCase
 
     public function test_two_homeroom_teachers_refuse_publication_rather_than_guessing(): void
     {
+        // Foundation F2's class_teacher_homeroom_open_unique index makes two
+        // simultaneously-open homeroom rows for one class a database-level
+        // impossibility through any normal write path -- see
+        // test_the_database_rejects_a_second_open_homeroom_row below for
+        // that guarantee itself. This test instead proves
+        // resolveHomeroomTeacherName() still fails loud as a SEPARATE,
+        // defense-in-depth guard rather than trusting the constraint alone
+        // (the same "DB enforces at most one, service/resolver enforces
+        // exactly one" reasoning as AcademicYear::current(), Foundation F1)
+        // -- so the index is dropped here to simulate the corruption that
+        // guard exists for.
         $this->seedReferenceData();
         [$student] = $this->studentWithScore(85);
         $class = $this->class('Year 5', 'Year 5A');
+
+        DB::statement('DROP INDEX class_teacher_homeroom_open_unique');
 
         foreach (['sarah', 'eka'] as $key) {
             DB::table('class_teacher')->insert([

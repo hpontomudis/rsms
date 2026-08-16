@@ -8,6 +8,7 @@ use App\Models\SchoolClass;
 use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\ClassTeacherService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
@@ -43,30 +44,54 @@ class Show extends Component
         $this->enrolled_at = now()->toDateString();
     }
 
-    public function assignTeacher(): void
+    /**
+     * `role` is deliberately limited to homeroom/assistant -- subject_teacher
+     * is deprecated for new writes (Foundation F2; ClassSubject is canonical
+     * for subject teaching). Both roles go through ClassTeacherService, never
+     * a direct pivot attach: for homeroom, setHomeroom() transparently
+     * performs a transactional handover if one is already assigned; for
+     * assistant, assignAssistant() is a plain effective-dated add.
+     */
+    public function assignTeacher(ClassTeacherService $service): void
     {
         $this->authorize('update', $this->schoolClass);
 
         $validated = $this->validate([
             'staff_id' => ['required', 'exists:staff,id'],
-            'role' => ['required', Rule::in(['homeroom', 'assistant', 'subject_teacher'])],
+            'role' => ['required', Rule::in(['homeroom', 'assistant'])],
         ]);
 
-        $this->schoolClass->teachers()->syncWithoutDetaching([
-            $validated['staff_id'] => ['role' => $validated['role']],
-        ]);
+        $staff = Staff::findOrFail($validated['staff_id']);
+
+        if ($validated['role'] === 'homeroom') {
+            $service->setHomeroom($this->schoolClass, $staff);
+        } else {
+            $service->assignAssistant($this->schoolClass, $staff);
+        }
 
         $this->reset(['staff_id', 'role', 'showAssignTeacher']);
         $this->schoolClass->refresh();
     }
 
-    public function removeTeacher(int $staffId, string $role): void
+    /**
+     * Closes the assignment (ended_on = today) rather than deleting it --
+     * history is preserved. For homeroom, this is the "temporarily no
+     * homeroom teacher" case (§14): no successor is opened.
+     */
+    public function removeTeacher(int $staffId, string $role, ClassTeacherService $service): void
     {
         $this->authorize('update', $this->schoolClass);
-        ClassTeacher::where('class_id', $this->schoolClass->id)
+
+        $assignment = ClassTeacher::where('class_id', $this->schoolClass->id)
             ->where('staff_id', $staffId)
             ->where('role', $role)
-            ->delete();
+            ->open()
+            ->first();
+
+        if ($assignment) {
+            $service->endAssignment($assignment);
+        }
+
         $this->schoolClass->refresh();
     }
 
@@ -164,6 +189,10 @@ class Show extends Component
     public function render()
     {
         return view('livewire.classes.show', [
+            // Current teachers only -- a closed (historical) assignment is
+            // no longer part of the class as it stands today, the same
+            // "active only" rule already applied to classSubjects below.
+            'currentTeachers' => $this->schoolClass->teachers()->wherePivotNull('ended_on')->get(),
             'availableStaff' => Staff::where('status', 'active')->orderBy('first_name')->get(),
             'availableStudents' => Student::where('status', 'active')->orderBy('first_name')->get(),
             'availableSubjects' => Subject::where(function ($q) {

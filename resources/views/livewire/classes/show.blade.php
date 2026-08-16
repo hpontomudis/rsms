@@ -42,20 +42,23 @@
                         <option value="">Select&hellip;</option>
                         <option value="homeroom">Homeroom</option>
                         <option value="assistant">Assistant</option>
-                        <option value="subject_teacher">Subject Teacher</option>
                     </select>
                     @error('role') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    <p class="mt-1 text-xs text-slate-400">Setting a new homeroom teacher automatically replaces the current one; the outgoing assignment stays on record as history.</p>
                 </div>
                 <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Assign</button>
             </form>
         @endif
 
         <ul class="divide-y divide-slate-100 text-sm">
-            @forelse ($schoolClass->teachers as $teacher)
+            @forelse ($currentTeachers as $teacher)
                 <li class="flex items-center justify-between py-2">
                     <div>
                         <a href="{{ route('staff.show', $teacher) }}" class="font-medium text-slate-900 hover:underline">{{ $teacher->fullName() }}</a>
                         <span class="ml-1 capitalize text-slate-500">({{ str_replace('_', ' ', $teacher->pivot->role) }})</span>
+                        @if ($teacher->pivot->started_on)
+                            <span class="ml-1 text-xs text-slate-400">since {{ \Illuminate\Support\Carbon::parse($teacher->pivot->started_on)->toFormattedDateString() }}</span>
+                        @endif
                     </div>
                     @can('update', $schoolClass)
                         <button

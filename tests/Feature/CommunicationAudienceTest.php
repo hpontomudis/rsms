@@ -182,33 +182,50 @@ class CommunicationAudienceTest extends TestCase
     }
 
     /**
-     * Documents a real, confirmed gap rather than papering over it: unlike
-     * ClassSubject (where Classes\Show::assignSubject() closes the outgoing
-     * assignment atomically), ClassTeacher's handover is two independent
-     * admin actions (removeTeacher() then assignTeacher()). If the first is
-     * skipped, the outgoing homeroom teacher's row is never removed and
-     * TeacherAudienceScope has no way to tell it apart from the new one --
-     * both are "current" by its own (necessarily approximate) definition.
-     * This test is not a bug report to fix in this closeout; it exists so a
-     * future change to class_teacher's shape has to consciously update this
-     * assertion rather than silently making the limitation disappear or worse.
+     * Foundation F2 CLOSED this gap. Before F2, ClassTeacher's handover was
+     * two independent admin actions (removeTeacher() then assignTeacher());
+     * skipping the first left the outgoing homeroom teacher's row in place,
+     * and TeacherAudienceScope had no way to tell it apart from the new one
+     * -- both read as "current". This test used to document and pin that
+     * exact defect (`test_a_stale_unremoved_homeroom_row_retains_authority_
+     * after_an_incomplete_handover`). It is inverted here rather than
+     * deleted: ClassTeacherService::setHomeroom() is now the only write
+     * path, and a handover is ALWAYS a single transaction that closes the
+     * outgoing row and opens the new one -- there is no "incomplete
+     * handover" state reachable through it. See also the load-bearing
+     * authority-transfer tests in ClassTeacherEffectiveDatingTest.
      */
-    public function test_a_stale_unremoved_homeroom_row_retains_authority_after_an_incomplete_handover(): void
+    public function test_a_homeroom_handover_immediately_revokes_the_outgoing_teachers_authority(): void
     {
         $outgoing = $this->teacherStaff('Sarah');
         $incoming = $this->teacherStaff('Eka');
         $class = $this->class('Year 5', 'Year 5A');
         $this->assignHomeroom($class, $outgoing);
 
-        // The handover assigns the new homeroom teacher but -- realistically,
-        // by omission -- never calls removeTeacher() on the outgoing one.
-        $this->assignHomeroom($class, $incoming);
+        $this->handoverHomeroom($class, $incoming);
 
         $outgoingTeacherUser = $outgoing->user->fresh();
         $communication = $this->draft($outgoingTeacherUser);
 
-        // Confirmed gap: the outgoing teacher can still target this class.
-        $rule = $this->communications()->addAudienceRule($communication, $outgoingTeacherUser, [
+        $this->expectException(ValidationException::class);
+        $this->communications()->addAudienceRule($communication, $outgoingTeacherUser, [
+            'rule_type' => 'school_class_students', 'school_class_id' => $class->id,
+        ]);
+    }
+
+    public function test_the_incoming_homeroom_teacher_gains_authority_after_handover(): void
+    {
+        $outgoing = $this->teacherStaff('Sarah');
+        $incoming = $this->teacherStaff('Eka');
+        $class = $this->class('Year 5', 'Year 5A');
+        $this->assignHomeroom($class, $outgoing);
+
+        $this->handoverHomeroom($class, $incoming);
+
+        $incomingTeacherUser = $incoming->user->fresh();
+        $communication = $this->draft($incomingTeacherUser);
+
+        $rule = $this->communications()->addAudienceRule($communication, $incomingTeacherUser, [
             'rule_type' => 'school_class_students', 'school_class_id' => $class->id,
         ]);
 

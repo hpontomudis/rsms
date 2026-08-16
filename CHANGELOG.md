@@ -4,6 +4,50 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-17 - Foundation F2: ClassTeacher Effective Dating
+
+Second approved piece of the Foundation Integrity Pass (`class_student`/F3 reviewed in the same architecture pass, still not approved). Governing rules: CURRENT CLASS-TEACHER AUTHORITY MUST BE DETERMINISTIC. HISTORY MUST BE PRESERVED. A homeroom handover = close old assignment + create new assignment, in one transaction.
+
+### Preflight, before any constraint
+Dev database inspected first: 1 `class_teacher` row (homeroom), no duplicate-homeroom classes, no orphaned Staff/Class references.
+
+### Effective dating: `started_on`/`ended_on`, backfilled from the Class's AcademicYear start date
+Same shape as `class_subject`/`teaching_group_student`. Backfill is a real fact (`academic_year_id` NOT NULL on `classes`, `start_date` NOT NULL on `academic_years`), not invented history. Migration count: 80 → 81.
+
+### Two partial unique indexes, replacing the old flat unique
+`class_teacher_homeroom_open_unique` (`class_id`, `WHERE role = 'homeroom' AND ended_on IS NULL`) — at most one open homeroom row per class, the actual singleton invariant. `class_teacher_open_unique` (`class_id, staff_id, role`, `WHERE ended_on IS NULL`) — replaces the old `unique(class_id, staff_id, role)`, which would have blocked legitimate rejoin history.
+
+### `subject_teacher` deprecated for new writes — structurally, not by runtime guard
+`ClassSubject` is already canonical for subject teaching; no live reader anywhere treated `class_teacher.role = 'subject_teacher'` as authoritative. `ClassTeacherService` exposes only `setHomeroom()`/`endHomeroom()`/`assignAssistant()`/`endAssignment()` — no method accepts an arbitrary role, so there is no code path to a new `subject_teacher` row. Existing rows preserved, unmigrated, non-authoritative.
+
+### `ClassTeacherService::setHomeroom()`: transactional close-and-create, idempotent
+Locks the class's current homeroom row, no-ops if the same Staff is already current, otherwise closes the outgoing row and opens the incoming one in one transaction. Never a hard delete. `endHomeroom()` supports "temporarily no homeroom teacher" without fabricating a successor.
+
+### Communication and Attendance authorization fixed together
+`TeacherAudienceScope::authorizedClassIds()` and `AttendancePolicy::hasClassAccess()` both now require an open `class_teacher` row — no more academic-year approximation. Fixed in the same commit so a handover can't close one surface while leaving the other stale. `CommunicationAudienceTest`'s stale-handover regression is inverted, not deleted: it now proves the outgoing teacher loses authority immediately.
+
+### Date-order CHECK constraint is PostgreSQL-only, documented asymmetry
+`ended_on IS NULL OR ended_on >= started_on` is a real `CHECK` constraint on PostgreSQL; SQLite's `ALTER TABLE` cannot add one to an existing table, so SQLite relies on `ClassTeacherService::endAssignment()`'s own validation plus tests. No range-exclusion (overlap) constraint added, per explicit instruction — DB current-row uniqueness + service validation + tests judged sufficient for now.
+
+### Added
+- Migration `2026_08_17_000001_add_effective_dating_to_class_teacher_table` — `started_on`/`ended_on`, backfill, two partial unique indexes, PostgreSQL date-order CHECK.
+- `App\Services\ClassTeacherService`.
+- `ClassTeacher` gains `Auditable`, `started_on`/`ended_on` casts, `scopeOpen`/`scopeClosed`/`isOpen()`.
+- `SchoolClass::homeroomTeacher()` rewritten: open-rows-only, fail-loud on >1.
+- `Classes\Show` UI: `subject_teacher` removed from the assign-teacher role dropdown; teacher list shows only current (open) assignments with a "since &lt;date&gt;" hint.
+- `tests/Feature/ClassTeacherEffectiveDatingTest.php` (18 tests).
+
+### Explicitly NOT done in F2
+`class_student` remediation (Foundation F3) — reviewed in the same architecture pass, not approved, not started. No `homeroomTeacherOn(date)` historical resolver — no existing consumer needs point-in-time resolution. No range-exclusion (overlap) DB constraint. No backdating UI (the service supports an optional effective date; the UI does not expose it).
+
+### Tests
+1,006 passing, 2,241 assertions (from 987/2,206 baseline — 19 net new tests: 18 in the new file, +1 net in `CommunicationAudienceTest` from splitting the inverted regression into two tests).
+
+### Migration count
+80 → 81.
+
+---
+
 ## 2026-08-16 - Foundation F1: AcademicYear Current-State Integrity
 
 First approved piece of a Foundation Integrity Pass (three areas reviewed — `AcademicYear`, `class_teacher`, `class_student` — only `AcademicYear` approved and implemented). Governing rule: CURRENT ACADEMIC YEAR MUST BE DETERMINISTIC. The database must prevent more than one current Academic Year; the application must provide one explicit, transactional way to change it; no silent `first()` guessing.

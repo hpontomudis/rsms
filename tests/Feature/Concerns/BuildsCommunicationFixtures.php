@@ -9,6 +9,7 @@ use App\Models\StaffCategory;
 use App\Models\Student;
 use App\Models\TeachingGroup;
 use App\Models\User;
+use App\Services\ClassTeacherService;
 use App\Services\CommunicationService;
 use Database\Seeders\StaffCategorySeeder;
 
@@ -73,11 +74,26 @@ trait BuildsCommunicationFixtures
         );
     }
 
+    /**
+     * Assign the class's homeroom teacher via the real service, not a raw
+     * pivot attach -- Foundation F2 made ClassTeacherService the only write
+     * path, and going through it here means fixtures exercise the same
+     * transactional close-and-create a real handover does (see
+     * handoverHomeroom() below).
+     */
     protected function assignHomeroom(SchoolClass $class, Staff $staff): void
     {
-        if (! $class->teachers()->wherePivot('staff_id', $staff->id)->wherePivot('role', 'homeroom')->exists()) {
-            $class->teachers()->attach($staff->id, ['role' => 'homeroom']);
-        }
+        app(ClassTeacherService::class)->setHomeroom($class, $staff);
+    }
+
+    /**
+     * A real handover, distinct from assignHomeroom() only in naming --
+     * makes tests read as "this call is deliberately replacing the current
+     * teacher" rather than "this is the class's first assignment".
+     */
+    protected function handoverHomeroom(SchoolClass $class, Staff $staff): void
+    {
+        app(ClassTeacherService::class)->setHomeroom($class, $staff);
     }
 
     protected function teacherStaff(string $key): Staff

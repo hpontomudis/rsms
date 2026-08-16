@@ -51,7 +51,7 @@ class Staff extends Model
     {
         return $this->belongsToMany(SchoolClass::class, 'class_teacher', 'staff_id', 'class_id')
             ->using(ClassTeacher::class)
-            ->withPivot(['role'])
+            ->withPivot(['role', 'started_on', 'ended_on'])
             ->withTimestamps();
     }
 

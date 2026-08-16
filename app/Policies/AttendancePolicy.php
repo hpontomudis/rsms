@@ -66,6 +66,14 @@ class AttendancePolicy
         return true;
     }
 
+    /**
+     * A teacher's class access follows the SAME open-row rule as Communication
+     * authority (`TeacherAudienceScope`, Foundation F2): only a currently-open
+     * `class_teacher` row grants access. A closed/historical row -- e.g. after
+     * a homeroom handover via `ClassTeacherService::setHomeroom()` -- no
+     * longer counts, so an outgoing teacher loses attendance access for a
+     * class the moment the handover commits, matching Communication.
+     */
     private function hasClassAccess(User $user, SchoolClass $schoolClass): bool
     {
         if (! $user->hasRole('teacher')) {
@@ -74,6 +82,6 @@ class AttendancePolicy
 
         $staffId = $user->staff?->id;
 
-        return $staffId && $schoolClass->teachers()->where('staff_id', $staffId)->exists();
+        return $staffId && $schoolClass->teachers()->where('staff_id', $staffId)->wherePivotNull('ended_on')->exists();
     }
 }

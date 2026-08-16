@@ -119,10 +119,12 @@ class Student extends Model
     }
 
     /**
-     * Restrict a query to students enrolled in a class the given staff member teaches.
+     * Restrict a query to students enrolled in a class the given staff
+     * member CURRENTLY teaches -- a closed class_teacher row no longer
+     * counts (Foundation F2).
      */
     public function scopeTaughtBy(Builder $query, int $staffId): Builder
     {
-        return $query->whereHas('classes.teachers', fn ($q) => $q->where('staff_id', $staffId));
+        return $query->whereHas('classes.teachers', fn ($q) => $q->where('staff_id', $staffId)->whereNull('class_teacher.ended_on'));
     }
 }
