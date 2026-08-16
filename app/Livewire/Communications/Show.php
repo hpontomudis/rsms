@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Communications;
 
+use App\Ai\AiGenerationService;
+use App\Ai\CommunicationAssistant;
 use App\Communications\TeacherAudienceScope;
 use App\Models\Communication;
 use App\Models\Guardian;
@@ -12,6 +14,7 @@ use App\Models\Student;
 use App\Models\TeachingGroup;
 use App\Models\User;
 use App\Services\CommunicationService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -52,6 +55,18 @@ class Show extends Component
 
     /** @var array<int, int> */
     public array $selected_ids = [];
+
+    public bool $showAiPanel = false;
+
+    public string $ai_mode = 'clearer';
+
+    public string $ai_language = 'id';
+
+    public ?string $aiSuggestion = null;
+
+    public ?int $aiGenerationId = null;
+
+    public ?string $aiError = null;
 
     public function mount(Communication $communication): void
     {
@@ -94,6 +109,75 @@ class Show extends Component
         ]);
 
         $this->communication->refresh();
+    }
+
+    // ------------------------------------------------------------------ AI
+    //
+    // Generate never touches $this->communication or calls any
+    // CommunicationService method -- it only ever sets the transient
+    // aiSuggestion property. Only applyAiSuggestion() copies text into the
+    // (still unsaved) $this->body; saveContent() above remains the only
+    // path that writes to the database, completely unaware AI was involved.
+
+    public function toggleAiPanel(): void
+    {
+        $this->authorize('update', $this->communication);
+        $this->showAiPanel = ! $this->showAiPanel;
+        $this->reset(['aiSuggestion', 'aiGenerationId', 'aiError']);
+    }
+
+    public function generateAiSuggestion(CommunicationAssistant $assistant): void
+    {
+        $this->authorize('update', $this->communication);
+        $this->reset(['aiSuggestion', 'aiGenerationId', 'aiError']);
+
+        try {
+            $result = $assistant->suggest(
+                Auth::user(),
+                $this->communication,
+                $this->ai_mode,
+                $this->ai_language,
+                $this->title,
+                $this->body,
+            );
+        } catch (AuthorizationException) {
+            $this->aiError = 'AI assistance is not available for this communication.';
+
+            return;
+        }
+
+        if ($result->isSuccess()) {
+            $this->aiSuggestion = $result->text;
+            $this->aiGenerationId = $result->generationId;
+
+            return;
+        }
+
+        $this->aiError = $result->status === 'rate_limited'
+            ? 'You have reached the AI assistance limit for now. You can continue editing manually.'
+            : 'AI assistance is temporarily unavailable. You can continue editing manually.';
+    }
+
+    public function applyAiSuggestion(AiGenerationService $generations): void
+    {
+        $this->authorize('update', $this->communication);
+
+        if ($this->aiSuggestion === null) {
+            return;
+        }
+
+        $this->body = $this->aiSuggestion;
+
+        if ($this->aiGenerationId !== null) {
+            $generations->markAccepted($this->aiGenerationId);
+        }
+
+        $this->reset(['aiSuggestion', 'aiGenerationId', 'showAiPanel']);
+    }
+
+    public function dismissAiSuggestion(): void
+    {
+        $this->reset(['aiSuggestion', 'aiGenerationId', 'aiError']);
     }
 
     public function startAddingRule(): void
@@ -202,6 +286,9 @@ class Show extends Component
             'availableGuardians' => $availableGuardians,
             'availableUsers' => $isTeacher ? collect() : User::orderBy('name')->get(),
             'canManageAudience' => $user->can('manageAudience', $this->communication),
+            'canUseAi' => config('ai.enabled') && $user->can('ai.use') && $user->can('update', $this->communication),
+            'aiModes' => CommunicationAssistant::MODES,
+            'aiLanguages' => CommunicationAssistant::LANGUAGES,
             'canPublish' => $user->can('publish', $this->communication),
             'canArchive' => $user->can('archive', $this->communication),
             'canDelete' => $user->can('delete', $this->communication),

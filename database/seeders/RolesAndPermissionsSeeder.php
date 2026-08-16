@@ -47,6 +47,13 @@ class RolesAndPermissionsSeeder extends Seeder
             // permission alone never authorises a school-wide audience.
             'communications.view',
             'communications.manage',
+            // Global kill-switch, not a meaningful access boundary by
+            // itself -- every AI feature still requires the SAME underlying
+            // domain policy a manual edit would (CommunicationPolicy, etc).
+            // Granted narrowly at first: only where a real AI feature
+            // exists (Communication drafting). Extend to other roles when a
+            // feature that needs it actually ships for them.
+            'ai.use',
         ];
 
         foreach ($permissions as $permission) {
@@ -72,6 +79,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'performance.manage',
                 // School-wide publishing authority -- any audience.
                 'communications.manage',
+                'ai.use',
             ]);
 
         Role::firstOrCreate(['name' => 'admin_staff', 'guard_name' => 'web'])
@@ -93,6 +101,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 // Scoped to their own current Classes/Teaching Groups by
                 // CommunicationPolicy -- see its docblock.
                 'communications.manage',
+                'ai.use',
             ]);
 
         Role::firstOrCreate(['name' => 'finance_staff', 'guard_name' => 'web'])

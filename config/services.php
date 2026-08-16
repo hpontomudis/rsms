@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // AI assistance provider credential (V9A). Server-side only -- never
+    // read from the database, never exposed to Blade/JavaScript, never
+    // logged. See config/ai.php for the non-secret provider/model settings.
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+    ],
+
 ];

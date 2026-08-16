@@ -60,6 +60,68 @@
         @endif
     </div>
 
+    @if ($communication->isDraft() && $canUseAi)
+        {{-- --------------------------------------------------- AI assist --}}
+        <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-slate-700">AI assistance</h2>
+                @unless ($showAiPanel)
+                    <button type="button" wire:click="toggleAiPanel" class="text-xs font-medium text-brand-navy hover:underline">Improve wording&hellip;</button>
+                @else
+                    <button type="button" wire:click="toggleAiPanel" class="text-xs text-slate-500 hover:underline">Close</button>
+                @endunless
+            </div>
+
+            @if ($showAiPanel)
+                <p class="mb-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    AI assistance sends this draft's title and body to an external AI provider to suggest a rewrite.
+                    Nothing is saved until you review the suggestion and click Apply, then Save changes yourself.
+                </p>
+
+                <div class="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Rewrite for</label>
+                        <select wire:model="ai_mode" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            @foreach ($aiModes as $mode)
+                                <option value="{{ $mode }}">{{ ucfirst(str_replace('_', ' ', $mode)) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Language</label>
+                        <select wire:model="ai_language" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="id">Indonesian</option>
+                            <option value="en">English</option>
+                            <option value="bilingual">Bilingual (ID + EN)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="button" wire:click="generateAiSuggestion" wire:loading.attr="disabled"
+                    class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light disabled:opacity-50">
+                    <span wire:loading.remove wire:target="generateAiSuggestion">Generate suggestion</span>
+                    <span wire:loading wire:target="generateAiSuggestion">Generating&hellip;</span>
+                </button>
+
+                @if ($aiError)
+                    <p class="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{{ $aiError }}</p>
+                @endif
+
+                @if ($aiSuggestion)
+                    <div class="mt-4 rounded-lg bg-slate-50 p-3">
+                        <p class="mb-2 text-xs font-medium text-slate-500">AI-generated suggestion &mdash; review for accuracy before applying.</p>
+                        <p class="whitespace-pre-line rounded-md bg-white p-3 text-sm text-slate-800 ring-1 ring-slate-200">{{ $aiSuggestion }}</p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button type="button" wire:click="applyAiSuggestion" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Apply</button>
+                            <button type="button" wire:click="generateAiSuggestion" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Regenerate</button>
+                            <button type="button" wire:click="dismissAiSuggestion" class="rounded-md px-4 py-2 text-sm text-slate-500 hover:bg-slate-100">Dismiss</button>
+                        </div>
+                    </div>
+                @endif
+            @endif
+        </div>
+    @endif
+
     @if ($communication->isDraft() && $canManageAudience)
         {{-- ---------------------------------------------------- audience --}}
         <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
