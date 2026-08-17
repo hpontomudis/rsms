@@ -58,12 +58,19 @@ Route::post('/logout', function () {
     return redirect()->route('login');
 })->middleware('auth')->name('logout');
 
-Route::middleware('auth')->group(function () {
+// Deliberately outside the force-password-change-gated group below: a user
+// on a temporary password must be able to reach this page to escape it.
+Route::get('/password/change', \App\Livewire\Auth\ChangePassword::class)
+    ->middleware('auth')
+    ->name('password.change');
+
+Route::middleware(['auth', 'force-password-change'])->group(function () {
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
 
     Route::prefix('students')->name('students.')->group(function () {
         Route::get('/', Students\Index::class)->name('index');
         Route::get('/create', Students\Create::class)->name('create');
+        Route::get('/import', Students\Import::class)->name('import');
         Route::get('/{student}', Students\Show::class)->name('show');
         Route::get('/{student}/edit', Students\Edit::class)->name('edit');
         Route::get('/{student}/report-card', ReportCard::class)->name('report-card');
@@ -80,6 +87,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('staff')->name('staff.')->group(function () {
         Route::get('/', Staff\Index::class)->name('index');
         Route::get('/create', Staff\Create::class)->name('create');
+        Route::get('/import', Staff\Import::class)->name('import');
         Route::get('/{staff}', Staff\Show::class)->name('show');
         Route::get('/{staff}/edit', Staff\Edit::class)->name('edit');
     });

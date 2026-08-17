@@ -889,12 +889,28 @@ Third and final approved piece of the Foundation Integrity Pass. Governing rules
 
 ---
 
+## Foundation P2 — Pre-UAT User Provisioning + Identity Data Enhancement
+Status: Complete
+
+Four bounded sub-phases (P2A-P2D), approved together, committed separately.
+
+- **P2A — Identity fields.** `nik` on Staff and Students, `nisn` on Students. `VARCHAR`, nullable, plain `unique()` (sufficient for "unique where present" on both PostgreSQL and SQLite — NULLs never collide under a standard unique index). `digits:16`/`digits:10` validation; trimmed and normalized to `null` before every write. Shown on Create/Edit forms and Show pages; absent from Index list columns, exact-match searchable on Students instead.
+- **P2B — Password / account lifecycle.** `users.must_change_password` forces a redirect to `/password/change` via `ForcePasswordChange` middleware until cleared. `UserProvisioningService` is the one write path for provisioning a new login (temporary password) and for administrative reset (`super_admin`/`admin_staff` only, via `users.reset-password`) — cryptographically random password, never persisted/logged/audited in plaintext, reset also invalidates the account's other sessions.
+- **P2C — Bulk Staff import.** Template download → upload → validate the whole file → preview → confirm → import, CREATE-only (email/NIK conflicts rejected, not overwritten). Optional per-row account provisioning against a closed role allowlist (`teacher`/`admin_staff`/`finance_staff`/`management` — never `super_admin`/`principal`). One-time credential `.xlsx` download.
+- **P2D — Bulk Student import.** Same upload/validate/preview/confirm shape, CREATE-only (NISN/NIK conflicts rejected). Deliberately no class/grade column — see `PROJECT_STATUS.md`'s Technical Debt entry for why; students are enrolled afterward through the existing per-student Enroll action (`ClassStudentService`).
+
+Excel handling throughout uses `maatwebsite/excel` v4 (PhpSpreadsheet 5.9 underneath) via PhpSpreadsheet's own `IOFactory`/`Xlsx` reader-writer directly. No uploaded file is stored beyond the current request.
+
+---
+
 ## Cross-cutting (not a module, tracked here so it isn't lost)
 
-### Bulk Data Import/Export (Excel)
-Status: Requested, not yet scoped
+### App Shell / Navigation
+Status: Complete
 
-The user wants to bulk-upload existing spreadsheet data (starting with Students) instead of one-by-one entry, plus export for backup/reporting. Scoping is pending admin staff confirming exactly what data/columns exist in their current spreadsheets. See `PRD.md` §12 for the guardian-relationship design note.
+- Grouped sidebar layout (People / Academics / Finance sections + icons), permission-driven group visibility — Academics now includes English Programmes
+- Mobile slide-in drawer
+- User menu with logout
 
 ### App Shell / Navigation
 Status: Complete

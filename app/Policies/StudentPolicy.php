@@ -30,6 +30,11 @@ class StudentPolicy
         return $user->can('students.create');
     }
 
+    public function import(User $user): bool
+    {
+        return $user->can('students.import');
+    }
+
     public function update(User $user, Student $student): bool
     {
         return $user->can('students.update');

@@ -59,6 +59,17 @@ class RolesAndPermissionsSeeder extends Seeder
             // exists (Communication drafting). Extend to other roles when a
             // feature that needs it actually ships for them.
             'ai.use',
+            // Deliberately separate from staff.update (P2B): being able to
+            // edit a Staff profile must not, by itself, grant the power to
+            // lock a real person out of their account and hand someone
+            // else a fresh credential for it.
+            'users.reset-password',
+            // Bulk onboarding (P2C/P2D) -- separate from the day-to-day
+            // students.create/staff.create permissions above, so importing
+            // 250 rows at once is a deliberately distinct grant from
+            // creating one record by hand.
+            'staff.import',
+            'students.import',
         ];
 
         foreach ($permissions as $permission) {
@@ -97,6 +108,13 @@ class RolesAndPermissionsSeeder extends Seeder
                 'academic-years.manage', 'grades.manage',
                 'attendance.record', 'attendance.view',
                 'academics.manage', 'academics.plan', 'academics.record', 'academics.view',
+                // admin_staff is the operational onboarding role in this
+                // system (already the only role besides super_admin that
+                // creates Staff/Student records) -- P2B/P2C/P2D deliberately
+                // extend that same role rather than principal or management,
+                // neither of which does day-to-day Staff/Student data entry.
+                'users.reset-password',
+                'staff.import', 'students.import',
             ]);
 
         Role::firstOrCreate(['name' => 'teacher', 'guard_name' => 'web'])
