@@ -4,6 +4,27 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-17 - Pre-UAT Hardening P1: Safe Staging + Seeder Integrity
+
+The first approved slice of the Production Readiness + UAT architecture review's punch list -- scoped narrowly to what a shared/staging environment needed fixed before it could safely be exposed to anyone but the developer. No Finance, audit, identity, NIK/NISN, bulk-import, or performance work included; those remain explicitly deferred per the review.
+
+### The defect
+`DatabaseSeeder` unconditionally created `admin@rahai.sch.id` with a literal, hardcoded password (`'password'`) and granted it `super_admin` -- on every `db:seed` run, in every environment, with no way to opt out short of editing the seeder itself. This was the review's single highest-priority finding.
+
+### The fix
+`DatabaseSeeder` now runs only the 8 idempotent configuration/reference seeders (roles/permissions, grades, positions, staff categories, academic year/periods, English programmes, learning phases) -- none of which touch `users`. Creating the initial `super_admin` is now the sole job of a new command, `php artisan rsms:bootstrap-admin`, which reads `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` through a new `config/services.php` `bootstrap_admin` block (read via config, not a raw `env()` call, so it still resolves after `config:cache` -- the same reason `services.anthropic.key` already lives there rather than in `config/ai.php`). Absence of either value is a hard refusal with no fallback, in every environment including local dev. Re-running the command is safe: an existing account by that email is left untouched, the role is granted only if missing. The password is never echoed, logged, or written anywhere -- it flows straight into `User`'s existing `hashed` cast.
+
+### Documentation
+Two new top-level docs: [DEPLOYMENT.md](DEPLOYMENT.md) (staging environment checklist, an explicit Hostinger-unknowns checklist marked `TO VERIFY ON HOSTINGER` rather than guessed at, the permanent database-safety convention extended to name every environment distinctly, and backup-timing requirements scoped by UAT/pilot/production stage) and [UAT_ISSUE_TEMPLATE.md](UAT_ISSUE_TEMPLATE.md) (a plain Markdown issue-report template with the review's severity definitions -- not an application feature).
+
+### Tests
+`tests/Feature/BootstrapAdminCommandTest.php`, 8 new tests: `DatabaseSeeder` creates no admin, the command refuses when unconfigured (both variants: neither set, only email set), explicit configuration creates the expected administrator with `super_admin` and active status, the password is genuinely hashed (not stored literally), repeated bootstrap is idempotent (no duplicate row), the bootstrapped account can authenticate, and the configuration seeders remain unaffected by the change.
+
+### Verification
+Full regression: 1,043 tests (1,042 passed, 1 PostgreSQL-only skipped on SQLite), 2,330 assertions -- exactly the F3.1 baseline (1,035/1,034/1/2,309) plus the 8 new tests and their 21 new assertions, zero regressions. Migration count unchanged at 82 (none was needed). Isolated-PostgreSQL manual verification (fresh `rahai_verify` database, dropped afterward) confirmed: zero users after a fresh install + seed, the bootstrap command refuses with no config, explicit configuration creates and re-confirms the account idempotently, the password is bcrypt-hashed, authentication succeeds with the correct credential and fails with an incorrect one, and roles/permissions seed correctly (7 roles, `super_admin` holding all 35 permissions). Followed the permanent pre-mutation safety rule throughout (printed and confirmed `DB_DATABASE=rahai_verify` before every mutating step). Dev database (`rahai_sms`) confirmed untouched (2 Students, 2 SchoolClasses, 3 Users, unchanged).
+
+---
+
 ## 2026-08-17 - Foundation F3.1: Student Authorization Effective-Enrollment Patch
 
 A narrow authorization-integrity patch for a defect discovered and flagged at F3's own closeout. Governing rule: HISTORICAL CLASS ENROLLMENT MUST NOT GRANT CURRENT TEACHER AUTHORITY. No migration (both `ended_on` columns already existed from F2/F3); no new authority source.

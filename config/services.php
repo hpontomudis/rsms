@@ -42,4 +42,17 @@ return [
         'key' => env('ANTHROPIC_API_KEY'),
     ],
 
+    // One-time super_admin bootstrap credential (Pre-UAT Hardening P1).
+    // Read ONLY by the `rsms:bootstrap-admin` Artisan command -- never by
+    // DatabaseSeeder, never automatically. Absence of either value means no
+    // admin is created, in any environment, including local dev: there is
+    // no predictable fallback. Read through this config file (not a raw
+    // env() call in the command) so it still resolves correctly after
+    // `config:cache`, the same reason services.anthropic.key lives here
+    // rather than in config/ai.php.
+    'bootstrap_admin' => [
+        'email' => env('BOOTSTRAP_ADMIN_EMAIL'),
+        'password' => env('BOOTSTRAP_ADMIN_PASSWORD'),
+    ],
+
 ];
