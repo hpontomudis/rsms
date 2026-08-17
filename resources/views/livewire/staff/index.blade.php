@@ -1,11 +1,18 @@
 <div class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 class="font-serif text-xl font-bold text-brand-navy">Staff</h1>
-        @can('create', \App\Models\Staff::class)
-            <a href="{{ route('staff.create') }}" class="inline-flex justify-center rounded-md bg-brand-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light">
-                + Add Staff
-            </a>
-        @endcan
+        <div class="flex gap-2">
+            @can('import', \App\Models\Staff::class)
+                <a href="{{ route('staff.import') }}" class="inline-flex justify-center rounded-md border border-slate-300 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50">
+                    Import Staff
+                </a>
+            @endcan
+            @can('create', \App\Models\Staff::class)
+                <a href="{{ route('staff.create') }}" class="inline-flex justify-center rounded-md bg-brand-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light">
+                    + Add Staff
+                </a>
+            @endcan
+        </div>
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row">
