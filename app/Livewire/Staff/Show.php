@@ -3,6 +3,7 @@
 namespace App\Livewire\Staff;
 
 use App\Models\Staff;
+use App\Services\UserProvisioningService;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -10,6 +11,13 @@ use Livewire\Component;
 class Show extends Component
 {
     public Staff $staff;
+
+    /**
+     * Set only immediately after a reset, for this one response. Never
+     * persisted, never re-derivable -- reloading the page clears it, which
+     * is deliberate: there is no permanent "view password" screen.
+     */
+    public ?string $temporaryPassword = null;
 
     public function mount(Staff $staff): void
     {
@@ -25,6 +33,17 @@ class Show extends Component
         session()->flash('status', "{$this->staff->fullName()} was archived.");
 
         return $this->redirect(route('staff.index'), navigate: true);
+    }
+
+    public function resetPassword(UserProvisioningService $provisioning): void
+    {
+        $this->authorize('resetPassword', $this->staff);
+
+        if (! $this->staff->user) {
+            return;
+        }
+
+        $this->temporaryPassword = $provisioning->resetPassword($this->staff->user);
     }
 
     public function render()

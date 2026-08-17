@@ -21,8 +21,26 @@
                     Archive
                 </button>
             @endcan
+            @if ($staff->user && auth()->user()->can('resetPassword', $staff))
+                <button
+                    type="button"
+                    wire:click="resetPassword"
+                    wire:confirm="Reset {{ $staff->fullName() }}'s password? Their current password stops working immediately and they'll be signed out everywhere."
+                    class="rounded-md border border-amber-200 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50"
+                >
+                    Reset Password
+                </button>
+            @endif
         </div>
     </div>
+
+    @if ($temporaryPassword)
+        <div class="rounded-xl bg-amber-50 p-5 ring-1 ring-amber-200">
+            <h2 class="mb-1 text-sm font-semibold text-amber-900">Temporary Password Generated</h2>
+            <p class="mb-3 text-sm text-amber-800">Share this with {{ $staff->fullName() }} now -- it will not be shown again. They must change it at their next login.</p>
+            <code class="block rounded-md bg-white px-3 py-2 font-mono text-base text-slate-900 ring-1 ring-amber-200">{{ $temporaryPassword }}</code>
+        </div>
+    @endif
 
     <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 class="mb-3 text-sm font-semibold text-slate-700">Details</h2>
@@ -34,6 +52,11 @@
             <div>
                 <dt class="text-slate-500">Email</dt>
                 <dd class="text-slate-900">{{ $staff->email ?? '—' }}</dd>
+            </div>
+
+            <div>
+                <dt class="text-slate-500">NIK</dt>
+                <dd class="text-slate-900">{{ $staff->nik ?? '—' }}</dd>
             </div>
             <div>
                 <dt class="text-slate-500">Hire Date</dt>
