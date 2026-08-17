@@ -41,7 +41,21 @@ class StudentPolicy
     }
 
     /**
-     * A teacher may only see students enrolled in a class they teach.
+     * A teacher may only see students CURRENTLY enrolled in a class they
+     * CURRENTLY teach (homeroom/assistant `class_teacher`) -- deliberately
+     * narrower than `TeacherAudienceScope`'s authority (which also counts
+     * `class_subject`/`TeachingGroup`); see `AcademicRecordPolicy`'s and
+     * `CommunicationPolicy`'s docblocks, which already document that
+     * StudentPolicy is NOT widened to match Communication's broader
+     * definition -- reusing it here would silently change what an issued
+     * Academic Record's read gate allows too.
+     *
+     * Two independent effective-dating checks, both load-bearing
+     * (Foundation F3.1): the Student's OWN `class_student` row must be
+     * OPEN (a transferred-out/withdrawn enrollment is history, not current
+     * membership), and the Staff's `class_teacher` row on that class must
+     * also be OPEN (a closed/handed-over assignment grants nothing). Either
+     * one alone would leave a historical-authority leak.
      */
     private function teaches(User $user, Student $student): bool
     {
@@ -52,7 +66,8 @@ class StudentPolicy
         }
 
         return $student->classes()
-            ->whereHas('teachers', fn ($q) => $q->where('staff_id', $staffId))
+            ->wherePivotNull('ended_on')
+            ->whereHas('teachers', fn ($q) => $q->where('staff_id', $staffId)->whereNull('class_teacher.ended_on'))
             ->exists();
     }
 }

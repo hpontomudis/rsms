@@ -4,6 +4,30 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-17 - Foundation F3.1: Student Authorization Effective-Enrollment Patch
+
+A narrow authorization-integrity patch for a defect discovered and flagged at F3's own closeout. Governing rule: HISTORICAL CLASS ENROLLMENT MUST NOT GRANT CURRENT TEACHER AUTHORITY. No migration (both `ended_on` columns already existed from F2/F3); no new authority source.
+
+### The defect, confirmed from code, not assumed from the note
+`StudentPolicy::teaches()` -- the sole method `StudentPolicy::view()` delegates to for teacher access -- queried the Student's `class_student` row and the Staff's `class_teacher` row with no effective-dating filter on either side. A transferred-out or withdrawn (historical) enrollment, or a closed/handed-over `class_teacher` row, could each independently still grant a teacher current `view` access to a Student.
+
+### The fix
+`app/Policies/StudentPolicy.php`'s `teaches()` now requires both sides to be open: `->wherePivotNull('ended_on')` on the Student's own `class_student` relation, and `->whereNull('class_teacher.ended_on')` inside the nested `teachers` `whereHas` closure. Either check alone would leave a historical-authority leak.
+
+### Deliberately not widened to match `TeacherAudienceScope`
+`StudentPolicy`'s homeroom/assistant-only definition of "currently teaches this Student" is narrower than `TeacherAudienceScope`'s (which also counts `class_subject` and `TeachingGroup`) -- confirmed intentional, not an oversight, via existing docblock evidence in `AcademicRecordPolicy` and `CommunicationPolicy` that already document StudentPolicy is not widened to match Communication's broader audience definition. Reusing `TeacherAudienceScope` here would have silently changed what an issued Academic Record's read gate allows too. `StudentPolicy` grants no TeachingGroup or ClassSubject authority today, so there was nothing of that kind to preserve.
+
+### A related, distinct gap found and deliberately left unfixed
+`Student::scopeTaughtBy()` (used by `Classes\Index`, `Students\Index`, Dashboard, and Attendance list filtering) filters an open `class_teacher` row but has no matching filter on the Student's own `class_student.ended_on` -- out of this patch's narrow scope, flagged in Technical Debt for a future pass.
+
+### Tests
+`tests/Feature/PolicyScopingTest.php` gained 5 tests: a load-bearing transfer-moves-access test (outgoing teacher loses access, incoming teacher gains it, the historical row remains in the database with `status = 'transferred_out'`), a withdrawal test, a closed-`class_teacher`-row test (student still currently enrolled, but the homeroom row was handed over), a subject-only-teacher-via-`class_subject`-is-still-denied test (pins the deliberate narrow boundary), and an admin/management-unaffected test.
+
+### Verification
+Full regression: 1,035 tests (1,034 passed, 1 PostgreSQL-only skipped on SQLite), 2,309 assertions -- exactly the F3 baseline (1,030/1,029/1/2,296) plus the 5 new tests and their 13 new assertions, zero regressions. Migration count unchanged at 82. Isolated-PostgreSQL manual verification (fresh `rahai_verify` database, dropped afterward) reproduced the transfer and withdrawal scenarios directly via `ClassStudentService`/`ClassTeacherService` and confirmed `StudentPolicy` authorization at each step, following the newly adopted permanent safety rule (print `APP_ENV`/`DB_CONNECTION`/`DB_DATABASE` and confirm the target is the isolated database before any tinker mutation). Dev database (`rahai_sms`) confirmed untouched throughout (2 Students, 2 SchoolClasses, no new rows).
+
+---
+
 ## 2026-08-17 - Foundation F3: ClassStudent Effective Dating + Date-Aware Roster Integrity
 
 Third and final approved piece of the Foundation Integrity Pass. Governing rules: ONE STUDENT = AT MOST ONE CURRENT ADMINISTRATIVE CLASS ENROLLMENT. HISTORY MUST BE PRESERVED. TRANSFER = CLOSE OLD ENROLLMENT + CREATE NEW ENROLLMENT, IN ONE TRANSACTION. And: adding effective dates without updating date-sensitive roster consumers is not a complete fix.
