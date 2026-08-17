@@ -58,18 +58,48 @@ class Student extends Model
             ->withTimestamps();
     }
 
+    /**
+     * The current administrative class, or null. Resolves the single OPEN
+     * `class_student` row directly (Foundation F3) -- no more dependency on
+     * `AcademicYear::current()`, since an open enrollment already answers
+     * "current" on its own. Fails loud rather than guessing if corruption
+     * somehow produces more than one open row (structurally impossible once
+     * `class_student_current_enrollment_unique` exists, but not trusted
+     * blindly -- the same defense-in-depth as `AcademicYear::current()` and
+     * `SchoolClass::homeroomTeacher()`).
+     */
     public function currentClass(): ?SchoolClass
     {
-        $currentYear = AcademicYear::current();
+        $open = $this->classStudents()->open()->with('schoolClass')->get();
 
-        if (! $currentYear) {
-            return null;
-        }
+        return match ($open->count()) {
+            0 => null,
+            1 => $open->first()->schoolClass,
+            default => throw new \LogicException(
+                "Student #{$this->id} has more than one open class_student row. This should be impossible once ".
+                'class_student_current_enrollment_unique is in place -- resolve the conflicting rows directly.'
+            ),
+        };
+    }
 
-        return $this->classes()
-            ->where('academic_year_id', $currentYear->id)
-            ->wherePivot('status', 'active')
-            ->first();
+    /**
+     * The administrative class effective on $date -- the minimum historical
+     * chronology helper needed by downstream consumers (report-card and
+     * roster point-in-time resolution). Same fail-loud discipline as
+     * currentClass().
+     */
+    public function classOn(\Illuminate\Support\Carbon $date): ?SchoolClass
+    {
+        $rows = $this->classStudents()->effectiveOn($date)->with('schoolClass')->get();
+
+        return match ($rows->count()) {
+            0 => null,
+            1 => $rows->first()->schoolClass,
+            default => throw new \LogicException(
+                "Student #{$this->id} has more than one class_student row effective on {$date->toDateString()}. ".
+                'This should be impossible once overlap validation is enforced -- resolve the conflicting rows directly.'
+            ),
+        };
     }
 
     public function fullName(): string

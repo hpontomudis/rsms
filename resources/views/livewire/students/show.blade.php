@@ -125,9 +125,21 @@
         <div class="mb-3 flex items-center justify-between">
             <h2 class="text-sm font-semibold text-slate-700">Class Enrollment</h2>
             @can('update', $student)
-                <button type="button" wire:click="$toggle('showEnroll')" class="text-sm font-medium text-slate-600 hover:text-slate-900">
-                    + Enroll in Class
-                </button>
+                <div class="flex items-center gap-3">
+                    <button type="button" wire:click="$toggle('showEnroll')" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+                        {{ $currentClass ? '+ Transfer to Class' : '+ Enroll in Class' }}
+                    </button>
+                    @if ($currentClass)
+                        <button
+                            type="button"
+                            wire:click="withdrawFromClass"
+                            wire:confirm="Withdraw {{ $student->fullName() }} from {{ $currentClass->name }} (leaving the school, not moving classes)?"
+                            class="text-sm font-medium text-red-500 hover:text-red-700"
+                        >
+                            Withdraw
+                        </button>
+                    @endif
+                </div>
             @endcan
         </div>
 
@@ -144,10 +156,13 @@
                     @error('class_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="mb-1 block text-xs font-medium text-slate-600">Enrolled From</label>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Effective From</label>
                     <input type="date" wire:model="enrolled_at" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                 </div>
-                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Enroll</button>
+                @error('class_student') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">
+                    {{ $currentClass ? 'Confirm Transfer' : 'Enroll' }}
+                </button>
             </form>
         @endif
 

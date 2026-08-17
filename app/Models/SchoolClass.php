@@ -42,8 +42,49 @@ class SchoolClass extends Model
     {
         return $this->belongsToMany(Student::class, 'class_student', 'class_id', 'student_id')
             ->using(ClassStudent::class)
-            ->withPivot(['enrolled_at', 'status'])
+            ->withPivot(['enrolled_at', 'status', 'ended_on'])
             ->withTimestamps();
+    }
+
+    /**
+     * The roster effective on $date -- students whose class_student row's
+     * half-open [enrolled_at, ended_on) window covers $date (Foundation
+     * F3). The one reusable "who was here on date Y" helper; `ClassSubject
+     * ::rosterOn()` (class-backed) and Attendance both go through this
+     * rather than each re-deriving the boundary rule.
+     */
+    public function studentsOn(\Illuminate\Support\Carbon $date): \Illuminate\Support\Collection
+    {
+        $on = $date->toDateString();
+
+        // whereDate(), not where(): a `date`-cast column can be stored with
+        // a spurious `00:00:00` time suffix on SQLite, which makes plain
+        // string comparison against a bare 'Y-m-d' value lexicographically
+        // wrong on the boundary day itself (`'2026-08-15 00:00:00' >
+        // '2026-08-15'` is TRUE as a string compare). whereDate() strips
+        // the time component on every driver before comparing.
+        return $this->students()
+            ->whereDate('class_student.enrolled_at', '<=', $on)
+            ->where(fn ($q) => $q->whereNull('class_student.ended_on')->orWhereDate('class_student.ended_on', '>', $on))
+            ->get();
+    }
+
+    /**
+     * Every Student whose enrollment window overlaps [$start, $end] at all
+     * -- used by date-RANGE reporting (Attendance\Report), where a Student
+     * who transferred out mid-range must still appear for the days they
+     * were genuinely enrolled, rather than vanishing because they are no
+     * longer on today's roster.
+     */
+    public function studentsEnrolledBetween(\Illuminate\Support\Carbon $start, \Illuminate\Support\Carbon $end): \Illuminate\Support\Collection
+    {
+        $startDate = $start->toDateString();
+        $endDate = $end->toDateString();
+
+        return $this->students()
+            ->whereDate('class_student.enrolled_at', '<=', $endDate)
+            ->where(fn ($q) => $q->whereNull('class_student.ended_on')->orWhereDate('class_student.ended_on', '>', $startDate))
+            ->get();
     }
 
     public function teachers(): BelongsToMany

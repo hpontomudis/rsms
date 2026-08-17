@@ -149,25 +149,30 @@ class ClassSubject extends Model
     /**
      * The students on this assignment's roster as at $on.
      *
-     * DATE SEMANTICS, which differ by source because the underlying data does:
+     * DATE SEMANTICS -- both sources are now genuinely date-aware
+     * (Foundation F3 closed the administrative-class gap named below):
      *
-     *  - Teaching group: genuinely date-aware. teaching_group_student is
-     *    effective-dated, so membership counts when started_on <= $on and the
-     *    membership had not yet ended on $on. A student who left in December is
-     *    on the November roster and off the January one.
+     *  - Teaching group: teaching_group_student is effective-dated (closed
+     *    interval, `started_on <= $on` and `ended_on IS NULL OR ended_on >=
+     *    $on`), so membership counts when started_on <= $on and the
+     *    membership had not yet ended on $on. A student who left in December
+     *    is on the November roster and off the January one.
      *
-     *  - Administrative class: NOT date-aware, because class_student is not
-     *    effective-dated -- it carries a status enum and no end date (recorded
-     *    as technical debt in Step 2a-ii). The roster is therefore the current
-     *    `active` membership, exactly as before this step. $on is accepted and
-     *    ignored rather than faked: inventing a date filter from enrolled_at
-     *    alone would silently change every existing class assessment.
+     *  - Administrative class: class_student is now effective-dated too
+     *    (half-open interval `[enrolled_at, ended_on)` -- see ClassStudent's
+     *    docblock for why the boundary convention differs from teaching
+     *    groups'). `SchoolClass::studentsOn($on)` resolves the roster
+     *    genuinely as at $on: a Student transferred out before $on is
+     *    excluded, one transferred in on/before $on is included. Previously
+     *    (before Foundation F3) $on was accepted and ignored here, always
+     *    returning today's roster regardless of the assessment/attendance
+     *    date requested -- documented as Technical Debt, now resolved.
      */
     public function rosterOn(Carbon $on): Collection
     {
         if ($this->isClassBacked()) {
             return $this->schoolClass
-                ? $this->schoolClass->students()->wherePivot('status', 'active')->get()
+                ? $this->schoolClass->studentsOn($on)
                 : collect();
         }
 

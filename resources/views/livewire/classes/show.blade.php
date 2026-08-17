@@ -103,24 +103,57 @@
                     <label class="mb-1 block text-xs font-medium text-slate-600">Enrolled From</label>
                     <input type="date" wire:model="enrolled_at" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                 </div>
+                @error('class_student') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
                 <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Enroll</button>
             </form>
         @endif
 
         <ul class="divide-y divide-slate-100 text-sm">
-            @forelse ($schoolClass->students as $student)
-                <li class="flex items-center justify-between py-2">
-                    <a href="{{ route('students.show', $student) }}" class="font-medium text-slate-900 hover:underline">{{ $student->fullName() }}</a>
-                    @can('update', $schoolClass)
-                        <button
-                            type="button"
-                            wire:click="unenrollStudent({{ $student->id }})"
-                            wire:confirm="Remove {{ $student->fullName() }} from this class?"
-                            class="text-xs text-red-500 hover:text-red-700"
-                        >
-                            Remove
-                        </button>
-                    @endcan
+            @forelse ($currentStudents as $student)
+                <li class="py-2">
+                    <div class="flex items-center justify-between">
+                        <a href="{{ route('students.show', $student) }}" class="font-medium text-slate-900 hover:underline">{{ $student->fullName() }}</a>
+                        @can('update', $schoolClass)
+                            <div class="flex items-center gap-3">
+                                <button type="button" wire:click="showTransferForm({{ $student->id }})" class="text-xs text-slate-600 hover:text-slate-900">
+                                    Transfer
+                                </button>
+                                <button
+                                    type="button"
+                                    wire:click="withdrawStudent({{ $student->id }})"
+                                    wire:confirm="Withdraw {{ $student->fullName() }} from the school (not just this class)?"
+                                    class="text-xs text-red-500 hover:text-red-700"
+                                >
+                                    Withdraw
+                                </button>
+                            </div>
+                        @endcan
+                    </div>
+
+                    @if ($transferringStudentId === (string) $student->id)
+                        <form wire:submit="transferStudent" class="mt-2 space-y-2 rounded-lg bg-slate-50 p-3">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Transfer to</label>
+                                <select wire:model="transfer_class_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                    <option value="">Select a class&hellip;</option>
+                                    @foreach ($transferTargetClasses as $target)
+                                        <option value="{{ $target->id }}">{{ $target->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('transfer_class_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Effective from</label>
+                                <input type="date" wire:model="transfer_on" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                                @error('transfer_on') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            @error('class_student') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                            <div class="flex gap-2">
+                                <button type="submit" class="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-navy-light">Confirm Transfer</button>
+                                <button type="button" wire:click="$set('transferringStudentId', '')" class="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+                            </div>
+                        </form>
+                    @endif
                 </li>
             @empty
                 <li class="py-2 text-slate-500">No students enrolled yet.</li>

@@ -6,6 +6,8 @@ use App\Models\AcademicYear;
 use App\Models\Guardian;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Services\ClassStudentService;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -69,7 +71,12 @@ class Show extends Component
         $this->student->refresh();
     }
 
-    public function enrollInClass(): void
+    /**
+     * Foundation F3: one lifecycle implementation, shared with Classes\Show
+     * -- ClassStudentService decides enroll-vs-transfer on the Student's
+     * own current state, never a second competing implementation here.
+     */
+    public function enrollInClass(ClassStudentService $service): void
     {
         $this->authorize('update', $this->student);
 
@@ -78,14 +85,23 @@ class Show extends Component
             'enrolled_at' => ['required', 'date'],
         ]);
 
-        $this->student->classes()->syncWithoutDetaching([
-            $validated['class_id'] => [
-                'enrolled_at' => $validated['enrolled_at'],
-                'status' => 'active',
-            ],
-        ]);
+        $class = SchoolClass::findOrFail($validated['class_id']);
+        $on = Carbon::parse($validated['enrolled_at']);
+
+        if ($this->student->currentClass()) {
+            $service->transfer($this->student, $class, $on);
+        } else {
+            $service->enroll($class, $this->student, $on);
+        }
 
         $this->reset(['class_id', 'showEnroll']);
+        $this->student->refresh();
+    }
+
+    public function withdrawFromClass(ClassStudentService $service): void
+    {
+        $this->authorize('update', $this->student);
+        $service->withdraw($this->student);
         $this->student->refresh();
     }
 

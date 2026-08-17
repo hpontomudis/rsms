@@ -4,6 +4,57 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-17 - Foundation F3: ClassStudent Effective Dating + Date-Aware Roster Integrity
+
+Third and final approved piece of the Foundation Integrity Pass. Governing rules: ONE STUDENT = AT MOST ONE CURRENT ADMINISTRATIVE CLASS ENROLLMENT. HISTORY MUST BE PRESERVED. TRANSFER = CLOSE OLD ENROLLMENT + CREATE NEW ENROLLMENT, IN ONE TRANSACTION. And: adding effective dates without updating date-sensitive roster consumers is not a complete fix.
+
+### Preflight, before any constraint
+Dev database: 2 `class_student` rows, both `active`, no student holding more than one active row, zero legacy `transferred_out`/`withdrawn` rows -- no legacy-provenance field added, per explicit instruction not to solve a hypothetical migration problem.
+
+### Boundary convention: HALF-OPEN `[enrolled_at, ended_on)`, deliberately different from `class_subject`/`teaching_group_student`
+A transfer closes and opens on the SAME calendar date; under the existing closed-interval convention that would double-count the Student on that date. `ended_on` is the first EXCLUDED date here, not the last included one. The single most important F3 design decision, made and documented explicitly rather than copied by default.
+
+### `class_student_current_enrollment_unique`: at most one open enrollment per Student, not scoped by class
+Partial unique index on `student_id` alone -- the invariant is "one Student → one current Class," matching the explicit instruction not to scope by `class_id`.
+
+### `ClassStudentService`: enroll / transfer / withdraw / correctCurrentEnrollment
+`enroll()` refuses a second open class (never silently duplicates), directing to `transfer()`. `transfer()` is the transactional close-and-create on one effective date. `withdraw()` closes with no successor. `correctCurrentEnrollment()` is a tightly bounded same-day-only hard-delete correction -- never available once a row is a day old.
+
+### The load-bearing fix: `ClassSubject::rosterOn()` is now genuinely date-aware for class-backed rosters too
+`SchoolClass::studentsOn($date)` replaces the old "always today's active membership" query. `Assessment::scoreSheetStudents()` required zero code changes -- it inherited the fix transitively.
+
+### Attendance Take and Report both became date-aware
+`Attendance\Take` resolves the roster effective on the attendance date, not today. `Attendance\Report` uses a new `studentsEnrolledBetween()` (range overlap) so a Student who transferred out mid-range still appears for the days they were genuinely enrolled, instead of vanishing from the report.
+
+### `StudentGradeResolver::gradeOn()` rewritten to be genuinely point-in-time
+Previously delegated to `gradeForYear()`'s current-only signal even when asked about a past date -- a real correctness gap for English-placement backdating. Now resolves via the new `Student::classOn($date)`.
+
+### `AcademicRecordService::resolveClass()` and `ReportCardBuilder::classParticipation()` -- one tightened, one deliberately unchanged
+`resolveClass()` stays current-only by design (publication rebuilds from current data, per this service's own governing rule) but now explicitly checks the open-row signal. `classParticipation()` was reviewed and found to need no change: its "any class touched that year" intent never depended on dates.
+
+### A real bug caught during F3's own build: `date`-cast columns need `whereDate()`, not `where()`
+`ended_on`/`enrolled_at` are stored with a spurious `00:00:00` time suffix on SQLite, making plain string comparison against a bare date lexicographically wrong on the boundary day itself. Fixed in `SchoolClass::studentsOn()`/`studentsEnrolledBetween()`.
+
+### Added
+- Migration `2026_08_17_000002_add_effective_dating_to_class_student_table` -- `ended_on`, backfill, current-enrollment partial unique index, two supporting indexes, PostgreSQL status/date-order CHECK constraints.
+- `App\Services\ClassStudentService`.
+- `ClassStudent` gains `Auditable`, `ended_on` cast, `scopeOpen`/`scopeClosed`/`scopeEffectiveOn()`.
+- `Student::currentClass()` rewritten (open-row, fail-loud, no more `AcademicYear::current()` dependency); `Student::classOn($date)` added.
+- `SchoolClass::studentsOn($date)` / `studentsEnrolledBetween($start, $end)`.
+- `Classes\Show`/`Students\Show` UI: Enroll / Transfer / Withdraw as three distinct actions; the old hard-`detach()` `unenrollStudent()` removed.
+- `tests/Feature/ClassStudentEffectiveDatingTest.php` (24 tests, 1 PostgreSQL-only skipped on SQLite).
+
+### Explicitly NOT done in F3
+No historical range-exclusion (overlap) DB constraint. No `AcademicYear`/`class_teacher` scope creep. No bulk promotion/rollover -- F3 provides the primitives a future promotion feature would use, not the feature itself. `ReportCardBuilder::classParticipation()` deliberately unchanged. `StudentPolicy::teaches()`'s missing open-row filter noted but not fixed (out of F3's named scope).
+
+### Tests
+1,030 total, 1,029 passing + 1 skipped (PostgreSQL-only date-range CHECK test, correctly skipped on SQLite), 2,296 assertions (from 1,006/2,241 baseline).
+
+### Migration count
+81 → 82.
+
+---
+
 ## 2026-08-17 - Foundation F2: ClassTeacher Effective Dating
 
 Second approved piece of the Foundation Integrity Pass (`class_student`/F3 reviewed in the same architecture pass, still not approved). Governing rules: CURRENT CLASS-TEACHER AUTHORITY MUST BE DETERMINISTIC. HISTORY MUST BE PRESERVED. A homeroom handover = close old assignment + create new assignment, in one transaction.

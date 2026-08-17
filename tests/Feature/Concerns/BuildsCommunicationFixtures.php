@@ -9,6 +9,7 @@ use App\Models\StaffCategory;
 use App\Models\Student;
 use App\Models\TeachingGroup;
 use App\Models\User;
+use App\Services\ClassStudentService;
 use App\Services\ClassTeacherService;
 use App\Services\CommunicationService;
 use Database\Seeders\StaffCategorySeeder;
@@ -52,11 +53,14 @@ trait BuildsCommunicationFixtures
         );
     }
 
+    /**
+     * Enroll via the real service, not a raw pivot attach -- Foundation F3
+     * made ClassStudentService the only write path. Idempotent no-op if
+     * already enrolled in this exact class.
+     */
     protected function enroll(Student $student, SchoolClass $class): void
     {
-        if (! $class->students()->where('student_id', $student->id)->exists()) {
-            $class->students()->attach($student->id, ['enrolled_at' => '2026-07-01', 'status' => 'active']);
-        }
+        app(ClassStudentService::class)->enroll($class, $student, \Illuminate\Support\Carbon::parse('2026-07-01'));
     }
 
     protected function linkGuardian(Student $student, Guardian $guardian, string $relationship = 'father'): void

@@ -66,7 +66,14 @@ class Report extends Component
         if ($schoolClass) {
             $this->authorize('viewFor', [Attendance::class, $schoolClass]);
 
-            $students = $schoolClass->students()->wherePivot('status', 'active')->orderBy('first_name')->get();
+            // Overlapping the report range, not "active today" (Foundation
+            // F3) -- a Student who transferred out mid-range must still
+            // show their attendance for the days they were genuinely here,
+            // rather than vanishing from the report entirely.
+            $students = $schoolClass->studentsEnrolledBetween(
+                \Illuminate\Support\Carbon::parse($this->start_date),
+                \Illuminate\Support\Carbon::parse($this->end_date),
+            )->sortBy('first_name')->values();
 
             $sessions = Attendance::where('class_id', $schoolClass->id)
                 ->whereBetween('date', [$this->start_date, $this->end_date])

@@ -8,6 +8,7 @@ use App\Models\SchoolClass;
 use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\ClassStudentService;
 use App\Services\ClassTeacherService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -30,6 +31,13 @@ class Show extends Component
     public string $student_id = '';
 
     public string $enrolled_at = '';
+
+    /** Non-empty while the transfer-destination form is open for this student id. */
+    public string $transferringStudentId = '';
+
+    public string $transfer_class_id = '';
+
+    public string $transfer_on = '';
 
     public bool $showAssignSubject = false;
 
@@ -95,7 +103,14 @@ class Show extends Component
         $this->schoolClass->refresh();
     }
 
-    public function enrollStudent(): void
+    /**
+     * Foundation F3: enrollment goes through ClassStudentService, the one
+     * write path. If the Student already has a current class elsewhere,
+     * the service refuses (never a silent second open row) with a message
+     * directing to Transfer -- surfaced here via the same validation-error
+     * bag a form-level failure would use.
+     */
+    public function enrollStudent(ClassStudentService $service): void
     {
         $this->authorize('update', $this->schoolClass);
 
@@ -104,21 +119,55 @@ class Show extends Component
             'enrolled_at' => ['required', 'date'],
         ]);
 
-        $this->schoolClass->students()->syncWithoutDetaching([
-            $validated['student_id'] => [
-                'enrolled_at' => $validated['enrolled_at'],
-                'status' => 'active',
-            ],
-        ]);
+        $service->enroll(
+            $this->schoolClass,
+            Student::findOrFail($validated['student_id']),
+            \Illuminate\Support\Carbon::parse($validated['enrolled_at']),
+        );
 
         $this->reset(['student_id', 'showEnrollStudent']);
         $this->schoolClass->refresh();
     }
 
-    public function unenrollStudent(int $studentId): void
+    public function showTransferForm(int $studentId): void
+    {
+        $this->transferringStudentId = (string) $studentId;
+        $this->transfer_class_id = '';
+        $this->transfer_on = now()->toDateString();
+    }
+
+    /**
+     * Close-and-create to a different administrative Class, in one
+     * transaction. See ClassStudentService::transfer().
+     */
+    public function transferStudent(ClassStudentService $service): void
     {
         $this->authorize('update', $this->schoolClass);
-        $this->schoolClass->students()->detach($studentId);
+
+        $validated = $this->validate([
+            'transfer_class_id' => ['required', 'exists:classes,id', 'different:schoolClass.id'],
+            'transfer_on' => ['required', 'date'],
+        ]);
+
+        $service->transfer(
+            Student::findOrFail($this->transferringStudentId),
+            SchoolClass::findOrFail($validated['transfer_class_id']),
+            \Illuminate\Support\Carbon::parse($validated['transfer_on']),
+        );
+
+        $this->reset(['transferringStudentId', 'transfer_class_id', 'transfer_on']);
+        $this->schoolClass->refresh();
+    }
+
+    /**
+     * Leaving the school entirely, not moving classes -- closes the
+     * enrollment with no successor. History preserved, never a hard
+     * detach.
+     */
+    public function withdrawStudent(int $studentId, ClassStudentService $service): void
+    {
+        $this->authorize('update', $this->schoolClass);
+        $service->withdraw(Student::findOrFail($studentId));
         $this->schoolClass->refresh();
     }
 
@@ -195,6 +244,13 @@ class Show extends Component
             'currentTeachers' => $this->schoolClass->teachers()->wherePivotNull('ended_on')->get(),
             'availableStaff' => Staff::where('status', 'active')->orderBy('first_name')->get(),
             'availableStudents' => Student::where('status', 'active')->orderBy('first_name')->get(),
+            // Current roster only -- a closed (historical) enrollment is no
+            // longer part of the class as it stands today (Foundation F3).
+            'currentStudents' => $this->schoolClass->students()->wherePivotNull('ended_on')->orderBy('first_name')->get(),
+            'transferTargetClasses' => SchoolClass::where('id', '!=', $this->schoolClass->id)
+                ->where('academic_year_id', $this->schoolClass->academic_year_id)
+                ->orderBy('name')
+                ->get(),
             'availableSubjects' => Subject::where(function ($q) {
                 $q->whereNull('grade_id')->orWhere('grade_id', $this->schoolClass->grade_id);
             })->orderBy('name')->get(),

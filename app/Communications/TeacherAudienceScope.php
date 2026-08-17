@@ -50,6 +50,16 @@ use Illuminate\Support\Collection;
  * only assignment mechanism Teaching Groups have (no separate pivot table),
  * so `ClassSubject::active()->teachingGroupBacked()` is authoritative and
  * unambiguous.
+ *
+ * STUDENT AUTHORITY via class membership (`authorizedStudentIds()`) is now
+ * effective-dated too (Foundation F3): only a Student's OPEN `class_student`
+ * row (`status = 'active' AND ended_on IS NULL`) counts. A Student
+ * transferred out of an authorized Class loses current audience membership
+ * for it the moment the transfer commits (`ClassStudentService::transfer()`
+ * is transactional close-and-create), and a Student transferred IN gains it
+ * immediately -- a historical (closed) `class_student` row never grants
+ * current audience membership, the same discipline F2 already applies to
+ * `class_teacher`.
  */
 class TeacherAudienceScope
 {
@@ -81,7 +91,7 @@ class TeacherAudienceScope
 
         $viaClasses = $classIds->isEmpty()
             ? collect()
-            : ClassStudent::whereIn('class_id', $classIds)->where('status', 'active')->pluck('student_id');
+            : ClassStudent::whereIn('class_id', $classIds)->where('status', 'active')->whereNull('ended_on')->pluck('student_id');
 
         $viaGroups = $groupIds->isEmpty()
             ? collect()

@@ -169,10 +169,20 @@ class ReportCardBuilder
     }
 
     /**
-     * PARTICIPATION-DRIVEN (class): unchanged from before Step 2d, including
-     * its known limitation. class_student has no effective dating, so the only
-     * available filter is the academic year of the class itself -- no
-     * chronology is invented from enrolled_at.
+     * PARTICIPATION-DRIVEN (class): deliberately UNCHANGED by Foundation F3,
+     * reviewed and confirmed rather than assumed. The intent has always been
+     * "any class this Student touched during the year counts" -- every
+     * class_student row for the year, open or closed, contributes, so a
+     * student who transferred Year 5A -> Year 5B mid-year gets both classes'
+     * subjects on their annual report. That query never filtered on
+     * status/ended_on before F3 and does not need to now: adding effective
+     * dating doesn't sharpen an existing "current only" intent here (unlike
+     * rosterOn(), which genuinely was current-only before F3 and needed
+     * fixing) -- there was never a narrower intent being blocked by the lack
+     * of dates. Changing this to "open enrollment only" would be a real
+     * behavior change to report-card subject discovery, not a precision fix,
+     * so it was deliberately left alone. See groupParticipation() below for
+     * the equivalent, already-precise teaching-group rule this mirrors.
      */
     private function classParticipation(Student $student, AcademicYear $year): Collection
     {

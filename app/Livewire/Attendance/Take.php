@@ -6,6 +6,7 @@ use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\AttendanceRecord;
 use App\Models\SchoolClass;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
@@ -123,7 +124,10 @@ class Take extends Component
         $class = SchoolClass::findOrFail($this->class_id);
         $this->authorize('recordFor', [Attendance::class, $class]);
 
-        $students = $class->students()->wherePivot('status', 'active')->orderBy('first_name')->get();
+        // Effective ON the attendance date, not today -- a Student
+        // transferred out before $this->date must not appear (Foundation
+        // F3); loadRoster() re-runs on every date change (updatedDate()).
+        $students = $class->studentsOn(Carbon::parse($this->date))->sortBy('first_name')->values();
 
         $existing = Attendance::where('class_id', $this->class_id)
             ->where('date', $this->date)
@@ -174,7 +178,7 @@ class Take extends Component
         $class = $this->class_id !== '' ? SchoolClass::with('grade')->find($this->class_id) : null;
 
         $students = $class
-            ? $class->students()->wherePivot('status', 'active')->orderBy('first_name')->get()
+            ? $class->studentsOn(Carbon::parse($this->date))->sortBy('first_name')->values()
             : collect();
 
         return view('livewire.attendance.take', [

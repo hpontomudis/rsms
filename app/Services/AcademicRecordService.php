@@ -193,15 +193,26 @@ class AcademicRecordService
     /**
      * The class a student resolves to for this year.
      *
-     * class_student has no effective dating, so this is explicitly the CURRENT
-     * resolved context rather than history. Ambiguity is refused rather than
-     * guessed -- the same rule StudentGradeResolver applies.
+     * Deliberately CURRENT (open-enrollment) resolution, not point-in-time
+     * -- unchanged in intent by Foundation F3, which made this precise
+     * rather than redesigning it: publish() rebuilds every value from
+     * CURRENT data at the moment of publication (this service's own
+     * governing rule, see the class docblock), so resolving "the class
+     * effective for the period" would contradict the very principle that
+     * stops a Monday draft issuing stale Friday numbers. A later transfer
+     * still never rewrites an already-published snapshot -- proven by
+     * test_a_homeroom_change_after_publication_does_not_alter_the_record's
+     * class_student analogue. Ambiguity is refused rather than guessed --
+     * the same rule StudentGradeResolver applies, though F3's
+     * `class_student_current_enrollment_unique` makes it a database-level
+     * impossibility now.
      */
     public function resolveClass(Student $student, $year): ?SchoolClass
     {
         $classes = $student->classes()
             ->where('academic_year_id', $year->id)
             ->wherePivot('status', 'active')
+            ->wherePivotNull('ended_on')
             ->with('grade')
             ->get();
 

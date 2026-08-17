@@ -13,21 +13,22 @@ use Illuminate\Support\Carbon;
  * this class exists so there is exactly one place that knows how to answer
  * the question.
  *
- * The path is: student -> class_student (status = active) -> classes
- * (filtered to one academic year) -> grades.
+ * The path is: student -> class_student (open row) -> classes -> grades.
  *
- * KNOWN AMBIGUITY IN THE PHASE 1 SCHEMA (documented, not redesigned here):
- * class_student is flat -- unique(class_id, student_id) with a status enum,
- * no effective dating -- and nothing at the database level stops a student
- * from holding two `active` rows for two different classes in the same
- * academic year. Student::currentClass() resolves that by taking first(),
- * which is silent and order-dependent.
+ * FOUNDATION F3: `class_student_current_enrollment_unique` now makes it a
+ * database-level impossibility for a Student to hold two OPEN rows at once,
+ * so `gradeForYear()`'s "active classes span more than one grade" ambiguity
+ * case is structurally unreachable through any normal write path -- a
+ * mid-year transfer closes the old row and opens the new one, so exactly
+ * one row is ever open, whichever grade it belongs to. The AMBIGUOUS check
+ * stays as defense-in-depth (the same "DB enforces at most one, resolver
+ * still refuses to guess" discipline as `AcademicYear::current()` and
+ * `SchoolClass::homeroomTeacher()`), not because it is expected to fire.
  *
- * Eligibility checks must not be silent, so this resolver refuses to guess:
- * if the active classes for a year point at more than one distinct grade, it
- * returns null and the caller reports the data problem instead of picking a
- * grade arbitrarily. Several active classes that all sit in the SAME grade
- * are unambiguous and resolve normally.
+ * A legitimate same-grade mid-year transfer (Year 5A -> Year 5B, both Grade
+ * "Year 5") resolves correctly and unambiguously by construction: only the
+ * new, open row is ever considered, and it points at the same grade the
+ * closed predecessor did.
  */
 class StudentGradeResolver
 {
@@ -40,14 +41,19 @@ class StudentGradeResolver
     public const AMBIGUOUS_YEAR = 'ambiguous_academic_year';
 
     /**
-     * The student's grade within one academic year, or null if it cannot be
-     * determined unambiguously. $reason receives NO_CLASS or AMBIGUOUS.
+     * The student's CURRENT grade, scoped to one academic year, or null if
+     * it cannot be determined unambiguously. Uses the single OPEN
+     * `class_student` row only -- never point-in-time; see gradeOn() for a
+     * genuinely historical (possibly backdated) resolution instead.
+     * $reason receives NO_CLASS or AMBIGUOUS.
      */
     public function gradeForYear(Student $student, int $academicYearId, ?string &$reason = null): ?Grade
     {
         $grades = Grade::whereHas('classes', function ($query) use ($student, $academicYearId) {
             $query->where('academic_year_id', $academicYearId)
-                ->whereHas('classStudents', fn ($q) => $q->where('student_id', $student->id)->where('status', 'active'));
+                ->whereHas('classStudents', fn ($q) => $q->where('student_id', $student->id)
+                    ->where('status', 'active')
+                    ->whereNull('ended_on'));
         })->get();
 
         if ($grades->isEmpty()) {
@@ -103,7 +109,14 @@ class StudentGradeResolver
     }
 
     /**
-     * The student's grade as at a date, resolved through that date's year.
+     * The student's grade AS AT a date -- genuinely point-in-time, not the
+     * student's current grade. Matters because a caller here (e.g. English
+     * placement backdating) can legitimately ask about a past date after
+     * the student has since transferred classes; resolving through today's
+     * open enrollment would silently answer the wrong question. Uses
+     * Student::classOn($date), which reads the class_student row whose
+     * half-open [enrolled_at, ended_on) window covers $date, never the
+     * current-only `status = active` signal gradeForYear() uses.
      */
     public function gradeOn(Student $student, Carbon $date, ?string &$reason = null): ?Grade
     {
@@ -113,7 +126,17 @@ class StudentGradeResolver
             return null;
         }
 
-        return $this->gradeForYear($student, $year->id, $reason);
+        $class = $student->classOn($date);
+
+        if (! $class || $class->academic_year_id !== $year->id) {
+            $reason = self::NO_CLASS;
+
+            return null;
+        }
+
+        $reason = null;
+
+        return $class->grade;
     }
 
     /**
