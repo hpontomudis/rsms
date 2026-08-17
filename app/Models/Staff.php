@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'staff_number', 'first_name', 'last_name', 'position_id', 'staff_category_id',
-    'phone', 'email', 'hire_date', 'status', 'user_id',
+    'phone', 'email', 'nik', 'hire_date', 'status', 'user_id',
 ])]
 class Staff extends Model
 {

@@ -35,6 +35,16 @@
                 <dt class="text-slate-500">Gender</dt>
                 <dd class="capitalize text-slate-900">{{ $student->gender }}</dd>
             </div>
+
+            <div>
+                <dt class="text-slate-500">NIK</dt>
+                <dd class="text-slate-900">{{ $student->nik ?? '—' }}</dd>
+            </div>
+
+            <div>
+                <dt class="text-slate-500">NISN</dt>
+                <dd class="text-slate-900">{{ $student->nisn ?? '—' }}</dd>
+            </div>
             <div>
                 <dt class="text-slate-500">Enrollment Date</dt>
                 <dd class="text-slate-900">{{ $student->enrollment_date->format('d M Y') }}</dd>

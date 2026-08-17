@@ -20,6 +20,10 @@ class Create extends Component
 
     public string $gender = '';
 
+    public string $nik = '';
+
+    public string $nisn = '';
+
     public string $enrollment_date = '';
 
     public function mount(): void
@@ -32,14 +36,22 @@ class Create extends Component
     {
         $this->authorize('create', Student::class);
 
+        $this->nik = trim($this->nik);
+        $this->nisn = trim($this->nisn);
+
         $validated = $this->validate([
             'student_number' => ['required', 'string', 'max:50', Rule::unique('students', 'student_number')],
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'date_of_birth' => ['required', 'date', 'before:today'],
             'gender' => ['required', Rule::in(['male', 'female'])],
+            'nik' => ['nullable', 'digits:16', Rule::unique('students', 'nik')],
+            'nisn' => ['nullable', 'digits:10', Rule::unique('students', 'nisn')],
             'enrollment_date' => ['required', 'date'],
         ]);
+
+        $validated['nik'] = $validated['nik'] !== '' ? $validated['nik'] : null;
+        $validated['nisn'] = $validated['nisn'] !== '' ? $validated['nisn'] : null;
 
         $student = Student::create($validated);
 

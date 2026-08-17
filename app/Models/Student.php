@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'student_number', 'first_name', 'last_name', 'date_of_birth', 'gender',
-    'photo_path', 'enrollment_date', 'status', 'user_id',
+    'photo_path', 'nik', 'nisn', 'enrollment_date', 'status', 'user_id',
 ])]
 class Student extends Model
 {

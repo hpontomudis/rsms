@@ -52,6 +52,12 @@
                 @error('email') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">NIK (optional)</label>
+                <input type="text" inputmode="numeric" maxlength="16" wire:model="nik" placeholder="16-digit national ID" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                @error('nik') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+            </div>
+
             <div class="sm:col-span-2">
                 <label class="mb-1 block text-sm font-medium text-slate-700">Hire Date</label>
                 <input type="date" wire:model="hire_date" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">

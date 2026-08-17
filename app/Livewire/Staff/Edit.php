@@ -25,6 +25,8 @@ class Edit extends Component
 
     public string $email = '';
 
+    public string $nik = '';
+
     public string $hire_date = '';
 
     public string $status = '';
@@ -39,6 +41,7 @@ class Edit extends Component
         $this->position_title = $staff->position->title;
         $this->phone = $staff->phone;
         $this->email = $staff->email ?? '';
+        $this->nik = $staff->nik ?? '';
         $this->hire_date = $staff->hire_date->toDateString();
         $this->status = $staff->status;
     }
@@ -47,6 +50,8 @@ class Edit extends Component
     {
         $this->authorize('update', $this->staff);
 
+        $this->nik = trim($this->nik);
+
         $validated = $this->validate([
             'staff_number' => ['required', 'string', 'max:50', Rule::unique('staff', 'staff_number')->ignore($this->staff->id)],
             'first_name' => ['required', 'string', 'max:100'],
@@ -54,9 +59,12 @@ class Edit extends Component
             'position_title' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
+            'nik' => ['nullable', 'digits:16', Rule::unique('staff', 'nik')->ignore($this->staff->id)],
             'hire_date' => ['required', 'date'],
             'status' => ['required', Rule::in(['active', 'on_leave', 'terminated'])],
         ]);
+
+        $validated['nik'] = $validated['nik'] !== '' ? $validated['nik'] : null;
 
         $position = Position::firstOrCreate(['title' => trim($validated['position_title'])]);
 

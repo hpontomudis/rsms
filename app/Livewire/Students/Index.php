@@ -53,7 +53,9 @@ class Index extends Component
             $query->where(function ($q) {
                 $q->where('first_name', 'like', "%{$this->search}%")
                     ->orWhere('last_name', 'like', "%{$this->search}%")
-                    ->orWhere('student_number', 'like', "%{$this->search}%");
+                    ->orWhere('student_number', 'like', "%{$this->search}%")
+                    ->orWhere('nisn', $this->search)
+                    ->orWhere('nik', $this->search);
             });
         }
 

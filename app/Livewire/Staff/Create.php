@@ -23,6 +23,8 @@ class Create extends Component
 
     public string $email = '';
 
+    public string $nik = '';
+
     public string $hire_date = '';
 
     public function mount(): void
@@ -35,6 +37,8 @@ class Create extends Component
     {
         $this->authorize('create', Staff::class);
 
+        $this->nik = trim($this->nik);
+
         $validated = $this->validate([
             'staff_number' => ['required', 'string', 'max:50', Rule::unique('staff', 'staff_number')],
             'first_name' => ['required', 'string', 'max:100'],
@@ -42,8 +46,11 @@ class Create extends Component
             'position_title' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
+            'nik' => ['nullable', 'digits:16', Rule::unique('staff', 'nik')],
             'hire_date' => ['required', 'date'],
         ]);
+
+        $validated['nik'] = $validated['nik'] !== '' ? $validated['nik'] : null;
 
         // Picking an existing position from the datalist re-uses its row;
         // typing a title that doesn't exist yet creates it on the fly.

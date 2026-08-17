@@ -38,6 +38,18 @@
             </div>
 
             <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">NIK (optional)</label>
+                <input type="text" inputmode="numeric" maxlength="16" wire:model="nik" placeholder="16-digit national ID" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                @error('nik') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">NISN (optional)</label>
+                <input type="text" inputmode="numeric" maxlength="10" wire:model="nisn" placeholder="10-digit national student ID" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
+                @error('nisn') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Enrollment Date</label>
                 <input type="date" wire:model="enrollment_date" class="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base focus:border-brand-navy focus:ring-1 focus:ring-brand-navy">
                 @error('enrollment_date') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
