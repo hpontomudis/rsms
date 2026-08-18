@@ -16,6 +16,25 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'force-password-change' => ForcePasswordChange::class,
         ]);
+
+        // RSMS runs behind Coolify's Traefik reverse proxy; the app
+        // container's own port is never reached directly from outside, and
+        // Traefik's internal-network IP isn't static, so there's no fixed
+        // address to whitelist -- trusting '*' is Laravel's own documented
+        // configuration for exactly this topology (an app that is only
+        // ever reached through a proxy whose address you don't control),
+        // not a blanket bypass of anything. Without this, Laravel never
+        // reads X-Forwarded-Proto and treats every request as plain HTTP
+        // even when Traefik terminated real HTTPS in front of it, which is
+        // why the login page rendered but its asset/URL generation silently
+        // fell back to http:// and never loaded.
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
