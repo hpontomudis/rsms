@@ -30,6 +30,15 @@ WORKDIR /app
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# php:8.4-cli-bookworm doesn't compile gd/zip in by default. Composer's
+# platform check (correctly) refuses to resolve phpoffice/phpspreadsheet
+# without them, since neither has a meaningful userland polyfill (unlike
+# e.g. mbstring, which a bundled symfony/polyfill package silently satisfies
+# here). Install exactly the extensions actually missing, rather than
+# suppressing the check.
+ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN install-php-extensions gd zip
+
 COPY composer.json composer.lock ./
 COPY database ./database
 COPY app ./app
@@ -38,6 +47,19 @@ COPY config ./config
 COPY routes ./routes
 COPY resources ./resources
 COPY artisan ./artisan
+
+# composer's post-autoload-dump hook runs `artisan package:discover`, which
+# boots the framework -- it needs bootstrap/cache/ (packages/services
+# manifest) and storage/framework/views (Blade's compiled-view cache path,
+# resolved via realpath() -- which returns false, not a path, for a
+# directory that doesn't exist yet, and Laravel's Compiler rejects that as
+# "please provide a valid cache path") to exist and be writable. storage/
+# was never copied into this stage at all, and .dockerignore excludes
+# bootstrap/cache/*.php (stale generated files aren't shipped), leaving
+# that directory empty -- COPY doesn't materialize an empty directory
+# either way. RUN uses /bin/sh (dash on Debian), which does NOT support
+# brace expansion -- each path is listed explicitly, not as one {a,b,c} glob.
+RUN mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/testing storage/framework/views storage/logs
 
 RUN composer install \
     --no-dev \
@@ -92,7 +114,9 @@ COPY . .
 COPY --from=vendor-build /app/vendor ./vendor
 COPY --from=frontend-build /app/public/build ./public/build
 
-RUN mkdir -p storage/framework/{cache,sessions,testing,views} storage/logs bootstrap/cache \
+# Same /bin/sh-has-no-brace-expansion note as the vendor-build stage above --
+# each path listed explicitly.
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/testing storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
