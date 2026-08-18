@@ -1,0 +1,64 @@
+# Version control
+.git
+.gitignore
+
+# Node -- build-time only, never needed in the final image
+node_modules
+npm-debug.log
+
+# Composer dev tooling / vendor from the host (installed fresh in-image)
+vendor
+
+# Never ship real environment files or local secrets into an image layer
+.env
+.env.*
+!.env.example
+auth.json
+
+# Local databases
+database/*.sqlite
+
+# Tests -- not needed at runtime
+tests
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache
+
+# Logs, caches, framework-generated runtime state (rebuilt fresh per image)
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+!storage/framework/cache/.gitignore
+!storage/framework/sessions/.gitignore
+!storage/framework/testing/.gitignore
+!storage/framework/views/.gitignore
+bootstrap/cache/*.php
+
+# IDE / editor
+.idea
+.vscode
+.nova
+.zed
+.cursor
+.phpactor.json
+
+# Deployment/dev-only artifacts not needed inside the image
+DEPLOYMENT.md
+UAT_ISSUE_TEMPLATE.md
+PROJECT_STATUS.md
+CHANGELOG.md
+MODULES.md
+PRD.md
+README.md
+Deepseek.txt
+
+# Pre-existing uncommitted DeepSeek integration -- must never enter any
+# image layer. .env.example/.gitignore/config/*.php/AppServiceProvider.php
+# cannot be blanket-excluded here (they are required application files with
+# just an uncommitted diff); the only way to guarantee a DeepSeek-free image
+# is to build from a clean git checkout, never this working directory as-is.
+# See DEPLOYMENT.md.
+app/Ai/DeepSeekAiProvider.php
+tests/Feature/DeepSeekAiProviderTest.php

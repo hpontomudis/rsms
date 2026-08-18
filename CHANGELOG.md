@@ -4,6 +4,14 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-18 - Dockerization + Coolify Preparation
+
+Packages the currently-approved RSMS application (through the P2.1 commit) for the new deployment target -- Hostinger VPS → Ubuntu 24.04 LTS → Coolify → RSMS container → separate PostgreSQL resource -- replacing the earlier shared-hosting direction. No application behavior, permissions, Foundation integrity semantics, or migrations changed; migration count stays 85. DeepSeek's pre-existing uncommitted work was not touched, staged, or committed.
+
+New: `Dockerfile` (three-stage build: Node/Vite frontend, `composer install --no-dev`, Nginx+PHP-FPM runtime under `supervisord`), `.dockerignore`, `docker/` (nginx.conf, php-fpm www.conf, php.ini, supervisord.conf, entrypoint.sh). No new application code or routes -- Laravel's existing `/up` health route is used as-is. `DEPLOYMENT.md` gained new sections (§5-10) covering the Docker/Coolify architecture, environment variables, resource model, and deployment sequences, while the earlier shared-hosting checklist (§1-4) is kept as historical record, not deleted.
+
+Verified (Docker itself unavailable in the working environment, disclosed rather than worked around): `npm ci && npm run build` and `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader` both run clean against a disposable git worktree at the P2.1 commit; the resulting `--no-dev` build migrates cleanly against an isolated PostgreSQL database (85/85), runs `rsms:bootstrap-admin`, boots and serves `/up`, `/login`, and protected-route redirects correctly, and generates a valid `.xlsx` via PhpSpreadsheet. An actual `docker build` was not performed and is the recommended next step, e.g. via Coolify's own first build.
+
 ## 2026-08-18 - P2.1: Account Provisioning Security + Clean Baseline Verification
 
 Closes a real privilege-escalation path P2 introduced. Scoped tightly per the approval: no new onboarding features, no staging deployment, no DeepSeek integration/commit.
