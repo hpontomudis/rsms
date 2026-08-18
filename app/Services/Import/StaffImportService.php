@@ -5,6 +5,7 @@ namespace App\Services\Import;
 use App\Models\Position;
 use App\Models\Staff;
 use App\Models\StaffCategory;
+use App\Models\User;
 use App\Services\UserProvisioningService;
 use Illuminate\Support\Facades\DB;
 
@@ -29,13 +30,13 @@ class StaffImportService
      * @param  StaffImportRow[]  $rows
      * @return array{staff: Staff, credential: ?array}[]
      */
-    public function import(array $rows): array
+    public function import(array $rows, User $actor): array
     {
         if (collect($rows)->contains(fn (StaffImportRow $r) => ! $r->isValid())) {
             throw new \InvalidArgumentException('StaffImportService::import() requires every row to already be valid.');
         }
 
-        return DB::transaction(function () use ($rows) {
+        return DB::transaction(function () use ($rows, $actor) {
             $results = [];
 
             foreach ($rows as $row) {
@@ -62,6 +63,7 @@ class StaffImportService
                 $credential = null;
                 if ($data['create_login']) {
                     $provisioned = $this->provisioning->provision(
+                        $actor,
                         trim($data['first_name'].' '.$data['last_name']),
                         $data['email'],
                         $data['role'],

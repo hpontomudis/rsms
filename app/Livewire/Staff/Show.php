@@ -4,6 +4,7 @@ namespace App\Livewire\Staff;
 
 use App\Models\Staff;
 use App\Services\UserProvisioningService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -43,7 +44,7 @@ class Show extends Component
             return;
         }
 
-        $this->temporaryPassword = $provisioning->resetPassword($this->staff->user);
+        $this->temporaryPassword = $provisioning->resetPassword(Auth::user(), $this->staff->user);
     }
 
     public function render()

@@ -4,6 +4,31 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-18 - P2.1: Account Provisioning Security + Clean Baseline Verification
+
+Closes a real privilege-escalation path P2 introduced. Scoped tightly per the approval: no new onboarding features, no staging deployment, no DeepSeek integration/commit.
+
+### The finding
+`StaffImportValidator`'s role allowlist and `StaffPolicy::resetPassword()` both gated only on the ACTOR holding a coarse permission (`staff.import`, `users.reset-password`) -- neither ever inspected the TARGET role. An `admin_staff` user (who legitimately holds both permissions for onboarding) could bulk-provision an `admin_staff`/`finance_staff`/`management` login, or click Reset Password on ANY Staff member's account regardless of how privileged it was -- including, in principle, a `principal` or `super_admin` Staff record, since `StaffPolicy::resetPassword()` never checked `$staff->user`'s role at all. (P2's bulk-import validator did already block `principal`/`super_admin` role *assignment* for everyone via a flat allowlist -- that specific protection was never broken. Everything else was.)
+
+### The fix
+New `App\Services\AccountAuthorizationMatrix` -- the one source of truth for "which actor role may provision or reset which target role." Consulted by `StaffImportValidator` (rejects a forbidden row before import, with a row-level message: `Role "X" cannot be provisioned by your account.`) and by `UserProvisioningService` itself, checked there **unconditionally**, not merely relying on a caller having already checked a Policy first. This matters specifically because `AppServiceProvider`'s `Gate::before` returns `true` for every ability check when the actor holds `super_admin`, bypassing `StaffPolicy` entirely for that role -- the service-level check is the only thing that actually stops a `super_admin` from resetting another `super_admin`'s password through the ordinary Staff UI. The P1 bootstrap command (`rsms:bootstrap-admin`) remains the one sanctioned path for a `super_admin` credential, unchanged by this pass.
+
+Final matrix:
+- `admin_staff` may provision/reset `teacher` only.
+- `super_admin` may provision/reset `teacher`/`admin_staff`/`finance_staff`/`management`. Never `principal`/`super_admin`, through either ordinary bulk import or the Staff-page Reset Password action.
+- `principal`/`management`/`teacher`/`finance_staff` hold no account-administration permissions at all (unchanged from P2).
+
+Target-role resolution fails closed if a User holds zero or more than one role -- never guessed via `first()`/`latest()`, matching this project's existing `ResolvesUnambiguousUser` discipline.
+
+### Tests
+20+ new -- `AccountAuthorizationMatrixTest` (31, including data-provider-expanded matrix cases for every actor/target-role pair in both directions, plus end-to-end proofs through the real Livewire/Policy/Service path, plus direct service-layer bypass tests) and 8 new cases added to `StaffImportTest` (row-level rejection, `admin_staff` cannot provision `admin_staff`/`finance_staff`/`management`/`principal`, `admin_staff` can still import Staff without a login, `super_admin` can bulk-provision every operational role).
+
+### Clean baseline verification
+Formally confirmed, via a temporary git worktree checked out at this commit (never the dirty working tree, which still carries an uncommitted, unrelated DeepSeek AI provider integration), that the 1,043-to-1,049 baseline discrepancy noted when P2 started was caused entirely by `tests/Feature/DeepSeekAiProviderTest.php` (6 tests, 17 assertions, confirmed via `git log` to have never been committed) -- not by any RSMS code. See this pass's completion report for the exact clean-worktree regression numbers, which now serve as the canonical post-P2.1 baseline.
+
+---
+
 ## 2026-08-18 - P2: Pre-UAT User Provisioning + Identity Data Enhancement
 
 Four bounded sub-phases, approved together as one enhancement, each committed separately per the approval's own preferred phasing. Scoped tightly: identity fields, password/account lifecycle, and bulk Staff/Student onboarding via Excel -- explicitly not a parent portal, not student login, not email password-reset, not WhatsApp OTP/SSO/biometric login, not bulk promotion.

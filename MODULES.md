@@ -895,11 +895,18 @@ Status: Complete
 Four bounded sub-phases (P2A-P2D), approved together, committed separately.
 
 - **P2A — Identity fields.** `nik` on Staff and Students, `nisn` on Students. `VARCHAR`, nullable, plain `unique()` (sufficient for "unique where present" on both PostgreSQL and SQLite — NULLs never collide under a standard unique index). `digits:16`/`digits:10` validation; trimmed and normalized to `null` before every write. Shown on Create/Edit forms and Show pages; absent from Index list columns, exact-match searchable on Students instead.
-- **P2B — Password / account lifecycle.** `users.must_change_password` forces a redirect to `/password/change` via `ForcePasswordChange` middleware until cleared. `UserProvisioningService` is the one write path for provisioning a new login (temporary password) and for administrative reset (`super_admin`/`admin_staff` only, via `users.reset-password`) — cryptographically random password, never persisted/logged/audited in plaintext, reset also invalidates the account's other sessions.
-- **P2C — Bulk Staff import.** Template download → upload → validate the whole file → preview → confirm → import, CREATE-only (email/NIK conflicts rejected, not overwritten). Optional per-row account provisioning against a closed role allowlist (`teacher`/`admin_staff`/`finance_staff`/`management` — never `super_admin`/`principal`). One-time credential `.xlsx` download.
+- **P2B — Password / account lifecycle.** `users.must_change_password` forces a redirect to `/password/change` via `ForcePasswordChange` middleware until cleared. `UserProvisioningService` is the one write path for provisioning a new login (temporary password) and for administrative reset (`super_admin`/`admin_staff` only, via `users.reset-password`, and only within the actor→target matrix P2.1 added — see below) — cryptographically random password, never persisted/logged/audited in plaintext, reset also invalidates the account's other sessions.
+- **P2C — Bulk Staff import.** Template download → upload → validate the whole file → preview → confirm → import, CREATE-only (email/NIK conflicts rejected, not overwritten). Optional per-row account provisioning, actor-aware since P2.1 (see below) — no longer a single flat allowlist shared by every actor. One-time credential `.xlsx` download.
 - **P2D — Bulk Student import.** Same upload/validate/preview/confirm shape, CREATE-only (NISN/NIK conflicts rejected). Deliberately no class/grade column — see `PROJECT_STATUS.md`'s Technical Debt entry for why; students are enrolled afterward through the existing per-student Enroll action (`ClassStudentService`).
 
 Excel handling throughout uses `maatwebsite/excel` v4 (PhpSpreadsheet 5.9 underneath) via PhpSpreadsheet's own `IOFactory`/`Xlsx` reader-writer directly. No uploaded file is stored beyond the current request.
+
+### P2.1 — Account Provisioning Security
+Status: Complete
+
+Closes a privilege-escalation path P2 itself introduced: actor permission alone (`staff.import`/`users.reset-password`) previously meant "may act on ANY target role," including one more privileged than the actor. `App\Services\AccountAuthorizationMatrix` is now the one source of truth, checked by `StaffImportValidator` (rejects a forbidden row before import) and unconditionally inside `UserProvisioningService` itself (necessary because `super_admin` bypasses every Policy/Gate check via `AppServiceProvider`'s `Gate::before` — the service is the only layer that can still stop a `super_admin` actor from resetting another `super_admin`'s password through the ordinary Staff UI).
+
+Final matrix: `admin_staff` → `teacher` only (both provision and reset). `super_admin` → `teacher`/`admin_staff`/`finance_staff`/`management` (both provision and reset) — never `principal`/`super_admin` through either path; the P1 bootstrap command remains the sanctioned way to (re-)establish a `super_admin` login. Target-role resolution fails closed on ambiguity (zero or multiple roles), never guessed.
 
 ---
 

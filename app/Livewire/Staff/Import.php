@@ -54,7 +54,7 @@ class Import extends Component
 
         $this->validate(['file' => ['required', 'file', 'mimes:xlsx', 'max:5120']]);
 
-        $this->preview = $validator->validate($this->file->getRealPath());
+        $this->preview = $validator->validate($this->file->getRealPath(), Auth::user());
         $this->validated = true;
         $this->file = null; // never persisted beyond this request
     }
@@ -67,7 +67,7 @@ class Import extends Component
             return;
         }
 
-        $this->imported = $importer->import($this->preview);
+        $this->imported = $importer->import($this->preview, Auth::user());
         $this->credentials = collect($this->imported)
             ->pluck('credential')
             ->filter()

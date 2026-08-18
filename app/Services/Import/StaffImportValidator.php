@@ -5,6 +5,8 @@ namespace App\Services\Import;
 use App\Models\Position;
 use App\Models\Staff;
 use App\Models\StaffCategory;
+use App\Models\User;
+use App\Services\AccountAuthorizationMatrix;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -15,16 +17,18 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
  * only, never name. CREATE-only: a row matching an existing Staff by
  * email or NIK is rejected as a conflict, never silently updated.
  *
- * A closed role allowlist is enforced here, not left to the spreadsheet:
- * super_admin and principal can never be assigned through a bulk import,
- * no matter what a row's `role` column says.
+ * The role allowlist is ACTOR-aware (P2.1): a row's `role` column is
+ * checked against AccountAuthorizationMatrix for the specific User
+ * running this import, not a single flat list shared by everyone --
+ * super_admin and principal can never be assigned through a bulk import
+ * regardless of actor, and admin_staff may only provision `teacher`
+ * even though `admin_staff`/`finance_staff`/`management` were previously
+ * (incorrectly) reachable through this same permission.
  */
 class StaffImportValidator
 {
-    public const ALLOWED_ROLES = ['teacher', 'admin_staff', 'finance_staff', 'management'];
-
     /** @return StaffImportRow[] */
-    public function validate(string $path): array
+    public function validate(string $path, User $actor): array
     {
         $spreadsheet = IOFactory::load($path);
         $sheet = $spreadsheet->getSheetByName('Staff') ?? $spreadsheet->getSheet(0);
@@ -49,7 +53,7 @@ class StaffImportValidator
 
             $rowNumber = $i + 1; // 1-indexed, matching what a human sees in Excel
             $data = $this->normalize($raw);
-            $errors = $this->validateRow($data, $rowNumber, $seenEmails, $seenNiks, $seenStaffNumbers);
+            $errors = $this->validateRow($data, $rowNumber, $actor, $seenEmails, $seenNiks, $seenStaffNumbers);
 
             $results[] = new StaffImportRow($rowNumber, $data, $errors);
         }
@@ -75,7 +79,7 @@ class StaffImportValidator
         ];
     }
 
-    private function validateRow(array $data, int $rowNumber, array &$seenEmails, array &$seenNiks, array &$seenStaffNumbers): array
+    private function validateRow(array $data, int $rowNumber, User $actor, array &$seenEmails, array &$seenNiks, array &$seenStaffNumbers): array
     {
         $errors = [];
 
@@ -136,8 +140,8 @@ class StaffImportValidator
             }
             if ($data['role'] === '') {
                 $errors[] = 'create_login is yes but role is blank.';
-            } elseif (! in_array($data['role'], self::ALLOWED_ROLES, true)) {
-                $errors[] = "Role \"{$data['role']}\" is not permitted through bulk import. Allowed: ".implode(', ', self::ALLOWED_ROLES).'.';
+            } elseif (! AccountAuthorizationMatrix::canProvision($actor, $data['role'])) {
+                $errors[] = "Role \"{$data['role']}\" cannot be provisioned by your account.";
             }
         }
 

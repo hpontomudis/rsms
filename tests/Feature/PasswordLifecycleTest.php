@@ -31,10 +31,18 @@ class PasswordLifecycleTest extends TestCase
 
     // --- Provisioning ---
 
+    private function superAdminActor(): User
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('super_admin');
+
+        return $admin;
+    }
+
     public function test_provisioned_account_has_a_hashed_password_and_must_change_password_true(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
-        $result = app(UserProvisioningService::class)->provision('New Teacher', 'new-teacher@rahai.sch.id', 'teacher');
+        $result = app(UserProvisioningService::class)->provision($this->superAdminActor(), 'New Teacher', 'new-teacher@rahai.sch.id', 'teacher');
 
         $this->assertNotEquals($result['temporaryPassword'], $result['user']->getRawOriginal('password'));
         $this->assertTrue(Hash::check($result['temporaryPassword'], $result['user']->password));
@@ -44,7 +52,7 @@ class PasswordLifecycleTest extends TestCase
     public function test_temporary_password_is_never_persisted_in_plaintext_anywhere(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
-        $result = app(UserProvisioningService::class)->provision('New Teacher', 'plaintext-check@rahai.sch.id', 'teacher');
+        $result = app(UserProvisioningService::class)->provision($this->superAdminActor(), 'New Teacher', 'plaintext-check@rahai.sch.id', 'teacher');
 
         $this->assertDatabaseMissing('users', ['password' => $result['temporaryPassword']]);
         $this->assertDatabaseMissing('audit_logs', ['new_values' => json_encode(['password' => $result['temporaryPassword']])]);
@@ -189,7 +197,7 @@ class PasswordLifecycleTest extends TestCase
             'ip_address' => '127.0.0.1', 'user_agent' => 'test', 'payload' => 'x', 'last_activity' => time(),
         ]);
 
-        app(UserProvisioningService::class)->resetPassword($staff->user);
+        app(UserProvisioningService::class)->resetPassword($admin, $staff->user);
 
         $this->assertDatabaseMissing('sessions', ['id' => 'test-session-id']);
     }
@@ -202,7 +210,7 @@ class PasswordLifecycleTest extends TestCase
         $staff = $this->staffWithUser();
 
         $this->actingAs($admin);
-        $password = app(UserProvisioningService::class)->resetPassword($staff->user);
+        $password = app(UserProvisioningService::class)->resetPassword($admin, $staff->user);
 
         $log = AuditLog::where('auditable_type', User::class)
             ->where('auditable_id', $staff->user->id)
