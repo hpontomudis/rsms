@@ -76,7 +76,7 @@ class AccountAuthorizationMatrixTest extends TestCase
 
     public static function allowedSuperAdminProvisionTargets(): array
     {
-        return [['teacher'], ['admin_staff'], ['finance_staff'], ['management']];
+        return [['teacher'], ['admin_staff'], ['finance_staff'], ['management'], ['principal']];
     }
 
     #[DataProvider('forbiddenSuperAdminProvisionTargets')]
@@ -88,7 +88,11 @@ class AccountAuthorizationMatrixTest extends TestCase
 
     public static function forbiddenSuperAdminProvisionTargets(): array
     {
-        return [['principal'], ['super_admin']];
+        // Deliberately just super_admin -- the P1 bootstrap command remains
+        // the one sanctioned path for that role. principal moved to the
+        // allowed list above; a school has exactly one, and provisioning
+        // it was previously unreachable through any path at all.
+        return [['super_admin']];
     }
 
     // --- §11: password reset matrix ---
@@ -131,7 +135,10 @@ class AccountAuthorizationMatrixTest extends TestCase
 
     public static function allowedSuperAdminResetTargets(): array
     {
-        return [['teacher'], ['admin_staff'], ['finance_staff'], ['management']];
+        // principal included deliberately -- unlike super_admin, there is
+        // no separate bootstrap path for a principal login, so this is the
+        // only way a locked-out principal recovers access at all.
+        return [['teacher'], ['admin_staff'], ['finance_staff'], ['management'], ['principal']];
     }
 
     public function test_super_admin_cannot_reset_another_super_admin_through_the_matrix(): void
@@ -142,15 +149,6 @@ class AccountAuthorizationMatrixTest extends TestCase
         $actor = $this->userWithRole('super_admin');
         $target = User::factory()->create();
         $target->assignRole('super_admin');
-
-        $this->assertFalse(AccountAuthorizationMatrix::canResetPasswordFor($actor, $target));
-    }
-
-    public function test_super_admin_cannot_reset_principal(): void
-    {
-        $actor = $this->userWithRole('super_admin');
-        $target = User::factory()->create();
-        $target->assignRole('principal');
 
         $this->assertFalse(AccountAuthorizationMatrix::canResetPasswordFor($actor, $target));
     }
@@ -221,6 +219,23 @@ class AccountAuthorizationMatrixTest extends TestCase
             ->assertForbidden();
 
         $this->assertTrue($superAdminTarget->user->fresh()->must_change_password === false);
+    }
+
+    public function test_end_to_end_super_admin_can_reset_a_principals_password_via_staff_ui(): void
+    {
+        // The real-world case this change exists for: a principal has no
+        // separate bootstrap path, so super_admin resetting one through the
+        // ordinary Staff UI is the only way a locked-out principal recovers
+        // access at all.
+        $superAdminActor = $this->userWithRole('super_admin');
+        $principalStaff = $this->staffWithUserRole('principal');
+
+        Livewire::actingAs($superAdminActor)
+            ->test(\App\Livewire\Staff\Show::class, ['staff' => $principalStaff])
+            ->call('resetPassword')
+            ->assertOk();
+
+        $this->assertTrue($principalStaff->user->fresh()->must_change_password);
     }
 
     public function test_service_layer_refuses_reset_even_when_called_directly_bypassing_policy(): void

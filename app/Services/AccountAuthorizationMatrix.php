@@ -31,7 +31,13 @@ class AccountAuthorizationMatrix
 {
     /** @var array<string, string[]> actor role => provisionable target roles */
     private const PROVISION = [
-        'super_admin' => ['teacher', 'admin_staff', 'finance_staff', 'management'],
+        // 'principal' added here deliberately, super_admin-only: a school
+        // has exactly one principal, and provisioning that login was
+        // previously unreachable through any path at all. super_admin is
+        // still deliberately excluded from its own target list -- the P1
+        // bootstrap command remains the one sanctioned way to (re-)establish
+        // a super_admin login.
+        'super_admin' => ['teacher', 'admin_staff', 'finance_staff', 'management', 'principal'],
         'admin_staff' => ['teacher'],
     ];
 
@@ -42,8 +48,11 @@ class AccountAuthorizationMatrix
         // Staff UI is denied here even though Gate::before would otherwise
         // let the actor reach this method at all. The only sanctioned way
         // to (re-)establish a super_admin login remains the P1 bootstrap
-        // command, unchanged by this class.
-        'super_admin' => ['teacher', 'admin_staff', 'finance_staff', 'management'],
+        // command, unchanged by this class. 'principal' IS included here
+        // (unlike super_admin) -- there is no separate bootstrap path for a
+        // principal login, so super_admin resetting one is the only way a
+        // locked-out principal recovers access at all.
+        'super_admin' => ['teacher', 'admin_staff', 'finance_staff', 'management', 'principal'],
         'admin_staff' => ['teacher'],
     ];
 

@@ -20,9 +20,11 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
  * The role allowlist is ACTOR-aware (P2.1): a row's `role` column is
  * checked against AccountAuthorizationMatrix for the specific User
  * running this import, not a single flat list shared by everyone --
- * super_admin and principal can never be assigned through a bulk import
- * regardless of actor, and admin_staff may only provision `teacher`
- * even though `admin_staff`/`finance_staff`/`management` were previously
+ * super_admin can never be assigned through a bulk import regardless of
+ * actor (the P1 bootstrap command remains the one sanctioned path),
+ * principal may only be assigned when the actor is super_admin, and
+ * admin_staff may only provision `teacher` even though
+ * `admin_staff`/`finance_staff`/`management` were previously
  * (incorrectly) reachable through this same permission.
  */
 class StaffImportValidator

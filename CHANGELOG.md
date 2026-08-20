@@ -4,6 +4,12 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-20 - Account Provisioning: allow super_admin to provision/reset a principal login
+
+P2.1's `AccountAuthorizationMatrix` deliberately excluded `principal` from every actor's provision/reset list, alongside `super_admin` -- but unlike `super_admin`, a `principal` login has no separate bootstrap command, so this left creating or recovering a principal's account genuinely unreachable through any path in the system at all. Discovered when trying to provision the school's own principal account.
+
+Fix: `principal` added to `super_admin`'s `PROVISION` and `RESET` lists only -- `admin_staff` still cannot provision or reset a `principal` (unchanged), and `super_admin` still cannot provision or reset another `super_admin` (unchanged; the P1 bootstrap command remains that role's one sanctioned path). One new end-to-end test proves `super_admin` can now reset a `principal`'s password through the real Staff UI; the two existing tests that asserted the old (unreachable) behavior were corrected to assert the new one. No migration; no unrelated changes. Full suite: 1,139/1,138/1 skipped/2,487 assertions, 0 failures; isolated-PostgreSQL scenario verification confirmed all 8 actor/target combinations (new and pre-existing) match the intended matrix exactly.
+
 ## 2026-08-18 - Dockerization + Coolify Preparation
 
 Packages the currently-approved RSMS application (through the P2.1 commit) for the new deployment target -- Hostinger VPS → Ubuntu 24.04 LTS → Coolify → RSMS container → separate PostgreSQL resource -- replacing the earlier shared-hosting direction. No application behavior, permissions, Foundation integrity semantics, or migrations changed; migration count stays 85. DeepSeek's pre-existing uncommitted work was not touched, staged, or committed.

@@ -158,13 +158,16 @@ class StaffImportTest extends TestCase
         $this->assertFalse(\App\Services\AccountAuthorizationMatrix::canProvision($superAdmin, 'super_admin'));
     }
 
-    public function test_principal_cannot_be_assigned_through_bulk_import(): void
+    public function test_super_admin_can_assign_principal_through_bulk_import(): void
     {
+        // A school has exactly one principal; provisioning that login was
+        // previously unreachable through any path at all. super_admin-only,
+        // unlike the operational roles admin_staff can also provision.
         $this->seed(RolesAndPermissionsSeeder::class);
         $superAdmin = User::factory()->create();
         $superAdmin->assignRole('super_admin');
 
-        $this->assertFalse(\App\Services\AccountAuthorizationMatrix::canProvision($superAdmin, 'principal'));
+        $this->assertTrue(\App\Services\AccountAuthorizationMatrix::canProvision($superAdmin, 'principal'));
     }
 
     public function test_account_provisioning_creates_a_login_with_a_temporary_password(): void
