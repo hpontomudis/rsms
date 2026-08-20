@@ -59,6 +59,26 @@ class StudentImportTest extends TestCase
         return $user;
     }
 
+    public function test_the_full_import_journey_runs_end_to_end_through_livewire(): void
+    {
+        // Student import carried the same two shipped bugs as Staff import
+        // (a reserved `upload()` method name, and a `$preview` property
+        // Livewire could not serialize). Same regression guard: drive the
+        // real component, not the service layer underneath it.
+        $this->actingAsAdminStaff();
+        $path = $this->xlsxFile([$this->validRow(['student_number' => 'IMPSTU-E2E-1'])]);
+
+        Livewire::test(\App\Livewire\Students\Import::class)
+            ->set('file', \Illuminate\Http\UploadedFile::fake()->createWithContent('students.xlsx', file_get_contents($path)))
+            ->call('validateFile')
+            ->assertHasNoErrors()
+            ->assertSet('validated', true)
+            ->call('confirmImport')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('students', ['student_number' => 'IMPSTU-E2E-1']);
+    }
+
     public function test_template_download_is_accessible(): void
     {
         $this->actingAsAdminStaff();

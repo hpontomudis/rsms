@@ -4,7 +4,19 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
-## 2026-08-20 - Upgrade livewire/livewire to v4.4.1 (fixes broken Staff/Student Import upload on the deployed site)
+## 2026-08-20 - Fix Staff/Student Import: reserved Livewire method name + unserializable preview rows
+
+The actual root cause of the broken Import screen -- two stacked bugs, both in RSMS's own code, neither caught by the 1,139-test suite. The preceding Livewire v4.4.1 upgrade was based on a wrong hypothesis and did **not** fix this (kept anyway: it is a clean in-constraint patch upgrade with a green suite, and reverting would be pointless churn).
+
+**Bug 1 -- reserved method name.** `Staff\Import` and `Students\Import` each declared `public function upload()`, bound via `<form wire:submit="upload">`. But `upload` is a **reserved Livewire `$wire` magic method**: Livewire's proxy keeps an alias map (`"upload" => "$upload"`, alongside `call`, `get`, `set`, `dispatch`, `entangle`, `island`, ...), so the expression never resolved to the PHP method at all. It silently invoked Livewire's own built-in file-upload function with no arguments, which does `[undefined].map(f => f.name)` and dies client-side with `TypeError: Cannot read properties of undefined (reading 'name')` inside `supportFileUploads.js`. The visible symptom was simply that clicking "Validate File" did nothing. Renamed to `validateFile()` in both components (matching the button label and the actual semantics -- it validates, it does not import).
+
+**Bug 2 -- unserializable public property.** Once the request reached PHP, it failed again: `$preview` is a public property holding `StaffImportRow`/`StudentImportRow` objects, and Livewire must serialize every public property into its component snapshot. Both were plain `final readonly` classes with no synthesizer, so Livewire threw `Property type not supported in Livewire for property: [...]`. Both now implement `Livewire\Wireable` with an explicit `toLivewire()`/`fromLivewire()` pair carrying exactly the three constructor values -- nothing derived, nothing hidden.
+
+**Why the suite never caught either.** Every existing import test drove the service layer directly (`StaffImportValidator`, `StaffImportService`) and never once exercised the Livewire component action, so the entire browser-facing path was untested. Added: an end-to-end journey test per importer that drives the real component (upload → validate → confirm → assert DB rows), plus `ReservedLivewireMethodNameTest`, a structural guard that reflects over every `App\Livewire` component and fails if any declares a method colliding with Livewire's reserved alias list -- the same class of bug cannot silently ship again.
+
+Verified in a real browser against the running app, not only in PHPUnit: file selected, "Validate File" clicked, preview rendered ("1 rows, 0 with errors"), zero console errors, then the previously-dead screen advanced to Confirm Import. Full suite: 1,149 tests / 1,148 passing / 1 skipped / 2,515 assertions / 0 failures -- run in the working tree, so that total includes the 6 uncommitted DeepSeek tests; the committed-code equivalent is 1,143 tests / 2,498 assertions (up from 1,139 / 2,487 by the four tests added here).
+
+## 2026-08-20 - Upgrade livewire/livewire to v4.4.1 (hypothesis-driven; NOT the actual fix -- see entry above)
 
 Found while trying to bulk-import staff on the live staging site: selecting a file on the Import screen crashed client-side with `TypeError: Cannot read properties of undefined (reading 'name')` inside Livewire's own `supportFileUploads.js`, so "Validate File" silently had nothing to submit. Reproduced consistently on the deployed Docker/Coolify/Traefik environment (including in a clean incognito session, ruling out browser caching); did not reproduce locally via `php artisan serve`, suggesting an environment-specific interaction rather than a defect in RSMS's own code -- this is 100% stock Livewire vendor JS, unmodified by anything in this codebase.
 

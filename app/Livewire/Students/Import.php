@@ -44,7 +44,13 @@ class Import extends Component
         return $builder->download();
     }
 
-    public function upload(StudentImportValidator $validator): void
+    /**
+     * Deliberately NOT named `upload()` -- that is a reserved Livewire
+     * `$wire` magic method and the form would silently never reach this
+     * class. See App\Livewire\Staff\Import::validateFile() for the full
+     * explanation, and ReservedLivewireMethodNameTest for the guard.
+     */
+    public function validateFile(StudentImportValidator $validator): void
     {
         $this->authorize('import', Student::class);
 

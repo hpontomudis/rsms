@@ -74,6 +74,50 @@ class StaffImportTest extends TestCase
             ->assertStatus(200);
     }
 
+    public function test_the_component_upload_action_runs_end_to_end_through_livewire(): void
+    {
+        // Regression guard for a shipped bug: this action used to be named
+        // `upload()`, which collides with a reserved Livewire `$wire` magic
+        // method -- `wire:submit="upload"` silently resolved to Livewire's
+        // own file-upload function instead of this component, so the form
+        // did nothing at all and died client-side. Every existing import
+        // test drove the service layer directly, so none of them noticed.
+        // This one deliberately goes through the real component action.
+        $this->actingAsAdminStaff();
+        $path = $this->xlsxFile([$this->validRow(['staff_number' => 'IMP-E2E-1'])]);
+
+        Livewire::test(\App\Livewire\Staff\Import::class)
+            ->set('file', UploadedFile::fake()->createWithContent('staff.xlsx', file_get_contents($path)))
+            ->call('validateFile')
+            ->assertHasNoErrors()
+            ->assertSet('validated', true);
+    }
+
+    public function test_the_full_import_journey_runs_end_to_end_through_livewire(): void
+    {
+        // The complete user journey, driven through the real component the
+        // way the browser drives it: upload -> validate -> confirm ->
+        // credentials. Each step re-serializes the component's public
+        // properties, which is exactly where this screen used to break.
+        $this->actingAsAdminStaff();
+        $path = $this->xlsxFile([$this->validRow([
+            'staff_number' => 'IMP-E2E-2',
+            'email' => 'imp-e2e-2@rahai.sch.id',
+            'create_login' => 'yes',
+            'role' => 'teacher',
+        ])]);
+
+        Livewire::test(\App\Livewire\Staff\Import::class)
+            ->set('file', UploadedFile::fake()->createWithContent('staff.xlsx', file_get_contents($path)))
+            ->call('validateFile')
+            ->assertSet('validated', true)
+            ->call('confirmImport')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('staff', ['staff_number' => 'IMP-E2E-2']);
+        $this->assertDatabaseHas('users', ['email' => 'imp-e2e-2@rahai.sch.id']);
+    }
+
     public function test_a_valid_row_imports_successfully(): void
     {
         $actor = $this->actingAsAdminStaff();

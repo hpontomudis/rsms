@@ -13,7 +13,7 @@
 
         <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <h2 class="mb-2 text-sm font-semibold text-slate-700">2. Upload the filled-in file</h2>
-            <form wire:submit="upload" class="space-y-3">
+            <form wire:submit="validateFile" class="space-y-3">
                 <input type="file" wire:model="file" accept=".xlsx" class="block w-full text-sm">
                 @error('file') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
                 <button type="submit" class="rounded-md bg-brand-navy px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-navy-light" wire:loading.attr="disabled">

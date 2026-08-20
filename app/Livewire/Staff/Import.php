@@ -48,7 +48,17 @@ class Import extends Component
         return $builder->download();
     }
 
-    public function upload(StaffImportValidator $validator): void
+    /**
+     * Deliberately NOT named `upload()`. Livewire's `$wire` proxy keeps an
+     * alias map of reserved magic methods (`upload`, `call`, `get`, `set`,
+     * `dispatch`, `entangle`, ...), so `wire:submit="upload"` never reaches
+     * this class -- it silently resolves to Livewire's own built-in
+     * file-upload function, which is then invoked with no arguments and
+     * dies client-side with "Cannot read properties of undefined (reading
+     * 'name')". The form appears to do nothing at all. Any name outside
+     * that alias map is safe; see ReservedLivewireMethodNameTest.
+     */
+    public function validateFile(StaffImportValidator $validator): void
     {
         $this->authorize('import', Staff::class);
 
