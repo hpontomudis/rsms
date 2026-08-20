@@ -4,6 +4,16 @@ All notable changes to RSMS are recorded here, in chronological order. Small/tin
 
 ---
 
+## 2026-08-20 - Upgrade livewire/livewire to v4.4.1 (fixes broken Staff/Student Import upload on the deployed site)
+
+Found while trying to bulk-import staff on the live staging site: selecting a file on the Import screen crashed client-side with `TypeError: Cannot read properties of undefined (reading 'name')` inside Livewire's own `supportFileUploads.js`, so "Validate File" silently had nothing to submit. Reproduced consistently on the deployed Docker/Coolify/Traefik environment (including in a clean incognito session, ruling out browser caching); did not reproduce locally via `php artisan serve`, suggesting an environment-specific interaction rather than a defect in RSMS's own code -- this is 100% stock Livewire vendor JS, unmodified by anything in this codebase.
+
+`composer.lock` was pinned to v4.3.5 because every install to date has used `composer install` (respects the lock exactly), never `composer update` -- `composer.json`'s existing `"livewire/livewire": "^4.3"` constraint already permitted newer 4.x releases. v4.4.1's own release notes name a direct fix ("Fix `_removeUpload` for Collection properties") plus two Alpine.js version bumps (to 3.16.1, then 3.16.2) -- Alpine is the reactive layer Livewire's upload manager runs through, and sits directly in this crash's call stack.
+
+Scoped to exactly one package: `composer update livewire/livewire` (no `--with-all-dependencies` -- an earlier attempt with that flag also pulled in laravel/framework and major-version Guzzle bumps, reverted as unrelated scope creep). `composer.json` unchanged (constraint already allowed it); `composer.lock` diff touches only livewire/livewire's own entry. Full suite: 1,139/1,138/1 skipped/2,487 assertions, 0 failures -- identical to the pre-upgrade baseline.
+
+**Not independently confirmed via a real browser click-through** -- reproducing the exact deployed-environment conditions locally ran into an unrelated, separately-discovered bug (server redirects dropping the port entirely in a bare-IP:port Docker test topology with no real reverse proxy in front, confirmed via raw `curl`, likely specific to that synthetic test setup rather than the real HTTPS-domain deployment) that blocked automated browser testing. Final confirmation needs to happen on the actual live site.
+
 ## 2026-08-20 - Account Provisioning: allow super_admin to provision/reset a principal login
 
 P2.1's `AccountAuthorizationMatrix` deliberately excluded `principal` from every actor's provision/reset list, alongside `super_admin` -- but unlike `super_admin`, a `principal` login has no separate bootstrap command, so this left creating or recovering a principal's account genuinely unreachable through any path in the system at all. Discovered when trying to provision the school's own principal account.
