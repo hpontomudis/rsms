@@ -22,7 +22,10 @@ return [
 
     'provider' => env('AI_PROVIDER', 'anthropic'),
 
-    'model' => env('AI_MODEL', 'claude-sonnet-5'),
+    'model' => env('AI_MODEL', match (env('AI_PROVIDER', 'anthropic')) {
+        'deepseek' => 'deepseek-chat',
+        default => 'claude-sonnet-5',
+    }),
 
     // Seconds. A synchronous request in V9A -- see AiGenerationService --
     // so this bounds how long a User's click can block the page.

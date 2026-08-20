@@ -42,6 +42,13 @@ return [
         'key' => env('ANTHROPIC_API_KEY'),
     ],
 
+    // Second AI provider credential, same rules as anthropic above: server-side
+    // only, never logged, never exposed to Blade/JavaScript. Active only when
+    // AI_PROVIDER=deepseek (config/ai.php).
+    'deepseek' => [
+        'key' => env('DEEPSEEK_API_KEY'),
+    ],
+
     // One-time super_admin bootstrap credential (Pre-UAT Hardening P1).
     // Read ONLY by the `rsms:bootstrap-admin` Artisan command -- never by
     // DatabaseSeeder, never automatically. Absence of either value means no
