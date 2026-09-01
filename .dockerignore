@@ -54,11 +54,9 @@ PRD.md
 README.md
 Deepseek.txt
 
-# Pre-existing uncommitted DeepSeek integration -- must never enter any
-# image layer. .env.example/.gitignore/config/*.php/AppServiceProvider.php
-# cannot be blanket-excluded here (they are required application files with
-# just an uncommitted diff); the only way to guarantee a DeepSeek-free image
-# is to build from a clean git checkout, never this working directory as-is.
-# See DEPLOYMENT.md.
-app/Ai/DeepSeekAiProvider.php
-tests/Feature/DeepSeekAiProviderTest.php
+# NOTE: app/Ai/DeepSeekAiProvider.php was excluded here while the DeepSeek
+# integration was deliberately uncommitted, so it could never leak into an
+# image. It is committed and shipped as of the DeepSeek provider commit, so
+# excluding it now would strip the class out of the build context and the
+# container would fail with `Class "App\Ai\DeepSeekAiProvider" not found`.
+# Deepseek.txt (the raw API key file, above) stays excluded permanently.
