@@ -90,7 +90,16 @@ class RolesAndPermissionsSeeder extends Seeder
                 'students.view', 'guardians.view', 'staff.view', 'classes.view', 'audit-logs.view',
                 'attendance.view',
                 'finance.view', 'finance.discounts.approve',
-                'academics.view', 'academics.manage', 'academics.plan',
+                // academics.record was deliberately withheld here originally --
+                // recording was a teacher act, managing was the principal's.
+                // Granted now because a principal who personally teaches a
+                // class had no way to enter that class's scores at all. Note
+                // the scope this carries: the Assessment/DailyJournal policies
+                // narrow to "your own assignment" only for hasRole('teacher'),
+                // so a principal holding this records school-wide, unscoped,
+                // including on closed assignments that teachers are frozen out
+                // of. That is a deliberate, accepted widening.
+                'academics.view', 'academics.manage', 'academics.plan', 'academics.record',
                 // The principal is the evaluator: creates, edits, finalizes.
                 'performance.manage',
                 // School-wide publishing authority -- any audience.

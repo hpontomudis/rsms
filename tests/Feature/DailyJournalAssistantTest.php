@@ -118,17 +118,26 @@ class DailyJournalAssistantTest extends TestCase
 
     public function test_ai_use_alone_does_not_bypass_the_journal_policy(): void
     {
-        // principal holds ai.use but NOT academics.record, so DailyJournalPolicy::update()
-        // refuses them on ANY draft journal (the backfill branch is gated behind the same
-        // academics.record check as the owns() branch). Confirmed empirically before writing
-        // this test -- see the V9A-3 completion report.
-        $principal = $this->principalUser();
+        // management holds ai.use but NEITHER academics.record NOR academics.manage,
+        // so DailyJournalPolicy::update() refuses it on ANY journal -- draft (needs
+        // record) or finalized (needs manage). That is the whole point of this test:
+        // ai.use is a kill-switch, never an authority of its own.
+        //
+        // This originally used `principal` for the same purpose, on the basis that a
+        // principal held ai.use but not academics.record. Principal was later granted
+        // academics.record (so a principal who personally teaches can record scores),
+        // which made it useless as a fixture here. The invariant is unchanged; only
+        // the role that demonstrates it moved. management is a stronger choice anyway,
+        // being unambiguously read-only.
+        $noJournalAuthority = $this->managementUser();
         $journal = $this->journal();
 
-        $this->assertFalse(Gate::forUser($principal)->allows('update', $journal));
+        $this->assertTrue($noJournalAuthority->can('ai.use'));
+        $this->assertFalse($noJournalAuthority->can('academics.record'));
+        $this->assertFalse(Gate::forUser($noJournalAuthority)->allows('update', $journal));
 
         $this->expectException(AuthorizationException::class);
-        $this->assistant()->suggest($principal, $journal, 'id', 'notes');
+        $this->assistant()->suggest($noJournalAuthority, $journal, 'id', 'notes');
     }
 
     public function test_a_user_whose_grants_satisfy_backfill_authority_may_generate_on_a_closed_assignment_draft(): void

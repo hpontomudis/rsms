@@ -54,8 +54,10 @@ class DailyJournalPolicy
     public function update(User $user, DailyJournal $journal): bool
     {
         // Correcting history is a management act, not a recording one, so it is
-        // gated on academics.manage alone -- a principal holds that without
-        // holding academics.record.
+        // gated on academics.manage alone. (This once also relied on a principal
+        // NOT holding academics.record; the principal role now does hold it, so
+        // the distinction here is purely that finalized journals need `manage`,
+        // which teachers never have.)
         if ($journal->isFinalized()) {
             return $user->can('academics.manage');
         }
